@@ -16,7 +16,7 @@
      
      Author:  Jamie F. Weleber
      Created: March 2026
-     Version: 1.16
+     Version: 1.17
      ============================================================ -->
 <html lang="en">
 <!-- ============================================================
@@ -461,6 +461,14 @@
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
             <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
             <div style="margin-bottom:24px;">
+    			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.17 &#8212; September 29, 2026</h3>
+    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+        			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Land cover and hydrography from local snapshots:</span> The MRLC land cover WMS and the USGS hydro MapServer had become the pipeline's bottleneck &mdash; up to 120&nbsp;s and 180&nbsp;s of timeouts per analysis since August &mdash; and a timed-out layer was silently dropped from the friction surface. Both are now read from snapshots on the server: Annual NLCD 2024 for CONUS (refreshed yearly) and USGS NHDPlus High Resolution for every basin in the country (refreshed quarterly). USGS 3DEP elevation is the only live request left. Typical analysis time drops from minutes to well under a minute.</p>
+        			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Higher-resolution streams:</span> Flowlines were previously drawn from the 1:100k NHDPlus V2 network; the snapshot is 1:24k NHDPlus HR throughout, so headwater washes now appear and named creeks carry a higher Strahler order than before (Sycamore Creek 6, Oak Creek 5, West Fork Oak Creek 4). Stream-order buffers and impedances are unchanged. The Jacobs stream-mask cutoff moves from Strahler &ge;3 to &ge;4 to compensate: measured on the Oak Creek bbox that reproduces the field-reviewed v1.15 stream and intersection masks within 3&ndash;10%, whereas keeping 3 grew them 77% and 51% from unnamed side drainages.</p>
+        			<p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Data-source warnings:</span> A missing or unreadable land cover or hydrography snapshot, or an area outside coverage, now appears in the Analysis Results warnings panel instead of being logged silently.</p>
+    			</div>
+    		</div>
+            <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.16 &#8212; September 29, 2026</h3>
     			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Live Overpass retired:</span> Trails, roads, waterways, and power lines now come exclusively from the weekly OpenStreetMap snapshot (Geofabrik extracts for all 50 states and DC, rebuilt every Sunday). The public Overpass mirrors had become the single largest time cost in an analysis &mdash; three 20-second timeouts before the cache was even consulted &mdash; and data up to a week old is operationally equivalent for trail and road networks. The &ldquo;live servers unavailable&rdquo; notice no longer appears; a warning is shown instead if the snapshot is more than 14 days old, which means the weekly rebuild has stopped running.</p>
@@ -660,7 +668,8 @@
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Data sources</h3>
                 <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:30%;">Elevation</td><td style="padding:5px 0;">USGS 3DEP 1/3 arc-second, resampled to 30m</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Land cover</td><td style="padding:5px 0;">NLCD 2021 (MRLC/USGS), 30m native</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Land cover</td><td style="padding:5px 0;">Annual NLCD 2024 (MRLC/USGS), 30m native, local CONUS snapshot</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Hydrology</td><td style="padding:5px 0;">USGS NHDPlus High Resolution (1:24k), local snapshot: waterbodies, area hydro polygons, flowlines with Strahler order</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Trails &amp; roads</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot (all 50 states + DC)</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Power line corridors</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot (power=line, power=minor_line)</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Waterways</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot</td></tr>
@@ -763,7 +772,7 @@
                 <p style="font-size:12px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
             </div>
 
-            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 29, 2026 | Version 1.16</p>
+            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 29, 2026 | Version 1.17</p>
 
             <div style="text-align:center;">
                 <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>

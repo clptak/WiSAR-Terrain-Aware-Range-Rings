@@ -1,10 +1,10 @@
 # ===============================================================================
 # Module:       pipeline/downloads.py
 # Purpose:      Data acquisition for the WiSAR analysis pipeline.
-#               Downloads elevation (USGS 3DEP), land cover (NLCD), and
-#               hydrology (NHD) for the analysis bounding box, and reads
-#               trail/road networks and power line corridors (OpenStreetMap)
-#               from the weekly local snapshot.
+#               Downloads elevation (USGS 3DEP) live — the only remaining
+#               network request — and reads land cover (NLCD), hydrology
+#               (NHDPlus HR) and trail/road/power line networks (OSM) from
+#               local snapshots under /var/www/sar.weleber.net/cache/.
 # Author:       Jamie F. Weleber
 # Created:      March 2026
 # ===============================================================================
@@ -15,7 +15,6 @@ from rasterio.warp import reproject, Resampling  # Reproject rasters between CRS
 import requests                 # HTTP client for downloading data from web APIs
 import os                       # File path manipulation
 import math                     # Trigonometric functions for coordinate math
-from shapely.geometry import shape  # Vector geometry construction
 import geopandas as gpd         # GeoDataFrames: pandas with geometry columns
 
 from pipeline.shared import WORK_DIR   # Shared temp directory for intermediate files
@@ -26,13 +25,13 @@ from pipeline.shared import WORK_DIR   # Shared temp directory for intermediate 
 # ===============================================================================
 
 # User-Agent identifier sent on every outbound HTTP request (USGS 3DEP,
-# MRLC/NLCD, NHD). None of these endpoints require identification today,
-# but the URL in the UA gives the service operator a way to contact us if
-# our traffic ever causes issues. It was originally mandatory because the
+# and the cache builders in tools/). None of these endpoints require
+# identification today, but the URL in the UA gives the service operator a
+# way to contact us if our traffic ever causes issues. It was originally mandatory because the
 # public Overpass API rejected the default 'python-requests' UA with HTTP
 # 406; the live Overpass path was retired in v1.16. Bump the version
 # string when cutting a new WiSAR release.
-WISAR_USER_AGENT = 'WiSAR-DST/1.16 (+https://sar.weleber.net)'
+WISAR_USER_AGENT = 'WiSAR-DST/1.17 (+https://sar.weleber.net)'
 
 
 # ===============================================================================
@@ -103,67 +102,69 @@ def download_dem(bbox, output_path=None):
 
 
 # ===============================================================================
-# STEP 2: Download land cover data (NLCD)
+# STEP 2: Load land cover data (NLCD)
 # ===============================================================================
 
 def download_nlcd(bbox, output_path=None):
-    """Download land cover data from the National Land Cover Database (NLCD 2021).
+    """Clip land cover for the bbox out of the local Annual NLCD snapshot.
 
     NLCD classifies every 30m cell in the continental US into one of ~20 land
     cover types (forest, developed, water, etc.). We use these classes to assign
     impedance values that model how difficult each terrain type is to traverse.
 
-    The data is served via WMS (Web Map Service) from the Multi-Resolution Land
-    Characteristics Consortium (MRLC). We use nearest-neighbor resampling because
-    land cover is categorical data — interpolating between "forest" and "water"
-    would produce meaningless intermediate values.
+    History: v1.00–v1.16 requested this from the MRLC WMS on every analysis.
+    From August 2026 that request began timing out at 120 s, and when it did
+    the analysis silently continued with uniform impedance. As of v1.17 the
+    source is a CONUS GeoTIFF installed by tools/build_nlcd_cache.py (see
+    pipeline/nlcd_cache.py); the clip is a windowed read that cannot time
+    out. The function keeps its "download_" name for its callers.
 
     Args:
         bbox: (west, south, east, north) in decimal degrees
-        output_path: Optional path to save the GeoTIFF
+        output_path: Optional path for the clipped GeoTIFF
     Returns:
-        Path to the downloaded NLCD GeoTIFF, or None if download fails
+        (path_or_None, warnings): the GeoTIFF path in the snapshot's native
+        CRS (build_cost_surface reprojects it onto the DEM grid), or None
+        for uniform impedance; plus a list of user-facing warning dicts.
     """
+    from pipeline import nlcd_cache
+
     if output_path is None:
         output_path = os.path.join(WORK_DIR, 'nlcd.tif')
-    west, south, east, north = bbox
-    center_lat = (south + north) / 2
-    m_per_deg_lng = 111320 * math.cos(math.radians(center_lat))
-    m_per_deg_lat = 110540
-    width_m = (east - west) * m_per_deg_lng
-    height_m = (north - south) * m_per_deg_lat
-    pixel_size = 30  # NLCD native resolution
-    width_px = max(int(width_m / pixel_size), 1)
-    height_px = max(int(height_m / pixel_size), 1)
-    max_px = 1000
-    if width_px > max_px or height_px > max_px:
-        scale = max_px / max(width_px, height_px)
-        width_px = int(width_px * scale)
-        height_px = int(height_px * scale)
-    # MRLC WMS endpoint for NLCD 2021 land cover (CONUS extent)
-    url = "https://www.mrlc.gov/geoserver/mrlc_download/NLCD_2021_Land_Cover_L48/ows"
-    params = {
-        'service': 'WMS', 'version': '1.1.1', 'request': 'GetMap',
-        'layers': 'NLCD_2021_Land_Cover_L48',
-        'bbox': f'{west},{south},{east},{north}',
-        'width': width_px, 'height': height_px,
-        'srs': 'EPSG:4326', 'styles': '', 'format': 'image/geotiff',
-    }
-    print(f"  Downloading NLCD: {width_px}x{height_px} pixels...")
+
+    print("  Loading NLCD land cover from the local snapshot...")
+    if not nlcd_cache.cache_is_available():
+        print("  WARNING: NLCD snapshot not present. Using uniform impedance.")
+        return None, [{
+            'severity': 'warning',
+            'source': 'nlcd',
+            'message': ('Land cover unavailable — the NLCD snapshot is not installed '
+                        'on this server. Analysis proceeded with uniform terrain '
+                        'friction; forest, brush and wetland are not slowing travel '
+                        'in these results.'),
+        }]
     try:
-        response = requests.get(url, params=params, timeout=120,
-                                headers={'User-Agent': WISAR_USER_AGENT})
-        response.raise_for_status()
-        with open(output_path, 'wb') as f:
-            f.write(response.content)
-        with rasterio.open(output_path) as src:
-            print(f"  NLCD downloaded: {src.width}x{src.height}")
-        return output_path
+        path = nlcd_cache.load_nlcd_from_cache(bbox, output_path)
     except Exception as e:
-        # NLCD download can fail if MRLC servers are down — fall back to
-        # uniform impedance so the analysis can still run (slope-only mode)
-        print(f"  NLCD download failed: {e}. Using uniform impedance.")
-        return None
+        print(f"  WARNING: NLCD snapshot read failed: {e}. Using uniform impedance.")
+        return None, [{
+            'severity': 'warning',
+            'source': 'nlcd',
+            'message': ('Land cover unavailable — reading the NLCD snapshot failed. '
+                        'Analysis proceeded with uniform terrain friction; forest, '
+                        'brush and wetland are not slowing travel in these results.'),
+        }]
+    if path is None:
+        # Outside the CONUS raster (Alaska, Hawaii, offshore). Same outcome
+        # the old L48 WMS layer gave there, but now the coordinator is told.
+        return None, [{
+            'severity': 'warning',
+            'source': 'nlcd',
+            'message': ('Land cover unavailable — the NLCD snapshot covers the '
+                        'continental US only. Analysis proceeded with uniform '
+                        'terrain friction.'),
+        }]
+    return path, []
 
 
 # ===============================================================================
@@ -298,162 +299,73 @@ def download_osm_features(bbox):
 
 
 # ===============================================================================
-# STEP 4: Download hydrology features (NHD)
+# STEP 4: Load hydrology features (NHD)
 # ===============================================================================
 
 def download_nhd_features(bbox):
-    """Download waterbodies and hydrology features from the National Hydrography Dataset.
-
-    NHD provides authoritative water feature boundaries from the USGS. We query
-    three layers:
-      - Layer 12 (Waterbodies): lakes, ponds, reservoirs as polygons
-      - Layer 9 (Area features): rivers and streams as polygon areas
-      - Layer 4 (Flowlines): stream/river centerlines with Strahler stream order
+    """Load waterbodies, area hydro polygons and flowlines from the local NHD snapshot.
 
     Water features are treated as barriers in the cost surface because lost
     persons generally cannot cross lakes or major rivers on foot. Flowlines are
-    buffered proportionally to their stream order — a 7th-order river gets a
-    much wider buffer than a 1st-order seasonal creek.
+    buffered proportionally to their Strahler stream order — a 7th-order river
+    gets a much wider buffer than a 1st-order seasonal creek.
+
+    History: v1.00–v1.16 made three sequential requests to the USGS hydro
+    MapServer (waterbodies, areas, flowlines) at 60 s each; in September
+    2026 those began timing out and cost up to three minutes per analysis,
+    and a timed-out layer was silently dropped. As of v1.17 the source is a
+    GeoPackage built from the USGS NHDPlus HR basin packages by
+    tools/build_hydro_cache.py (see pipeline/nhd_cache.py). Note the
+    resolution change: the MapServer's flowline layer was the 1:100k
+    NHDPlus V2 network; the snapshot is 1:24k throughout, so it carries
+    more headwater streams and a given creek may hold a higher Strahler
+    order than before. The function keeps its "download_" name for its
+    callers.
 
     Args:
         bbox: (west, south, east, north) in decimal degrees
     Returns:
-        GeoDataFrame of water feature polygons with impedance values
+        (GeoDataFrame, warnings): water feature polygons with 'type', 'ftype',
+        'name' and 'impedance' columns (empty frame if none), plus a list of
+        user-facing warning dicts.
     """
-    from pipeline.shared import repair_geometry  # Shared geometry repair utility
+    from pipeline import nhd_cache
 
-    west, south, east, north = bbox
-    geom_str = f'{west},{south},{east},{north}'
+    print("  Loading NHD hydrography from the local snapshot...")
+    empty = gpd.GeoDataFrame(columns=['geometry', 'type', 'ftype', 'name', 'impedance'],
+                             geometry='geometry', crs='EPSG:4326')
 
-    water_features = []
+    if not nhd_cache.cache_is_available():
+        print("  WARNING: NHD snapshot not present. Proceeding without water barriers.")
+        return empty, [{
+            'severity': 'warning',
+            'source': 'nhd',
+            'message': ('Hydrography unavailable — the NHD snapshot is not installed on '
+                        'this server. Lakes, rivers and streams are not acting as '
+                        'barriers in these results.'),
+        }]
 
-    # --- Sub-step A: Waterbodies (lakes, ponds, reservoirs) ---
-    url_wb = "https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/12/query"
-    params_wb = {
-        'geometry': geom_str,
-        'geometryType': 'esriGeometryEnvelope',
-        'inSR': '4326', 'outSR': '4326',
-        'spatialRel': 'esriSpatialRelIntersects',
-        'outFields': 'GNIS_NAME,FTYPE,FCODE,AREASQKM',
-        'f': 'geojson',
-        'returnGeometry': 'true',
-        'resultRecordCount': 500,
-    }
-    print("  Downloading NHD waterbodies...")
+    if not nhd_cache.cache_covers_bbox(bbox):
+        meta = nhd_cache.read_cache_metadata()
+        print(f"  WARNING: bbox outside NHD snapshot coverage "
+              f"({len(meta.get('hu4s', []))} basins). Proceeding without water barriers.")
+        return empty, [{
+            'severity': 'warning',
+            'source': 'nhd',
+            'message': ('Hydrography unavailable — the NHD snapshot does not cover this '
+                        'area. Lakes, rivers and streams are not acting as barriers in '
+                        'these results.'),
+        }]
+
     try:
-        response = requests.get(url_wb, params=params_wb, timeout=60,
-                                headers={'User-Agent': WISAR_USER_AGENT})
-        response.raise_for_status()
-        data = response.json()
-        for f in data.get('features', []):
-            ftype = f.get('properties', {}).get('FTYPE', 0)
-            name = f.get('properties', {}).get('GNIS_NAME', '') or 'unnamed'
-            water_features.append({
-                'geometry': shape(f['geometry']),
-                'type': 'waterbody',
-                'ftype': ftype,
-                'name': name,
-                'impedance': 99  # Near-impassable barrier
-            })
+        gdf = nhd_cache.load_nhd_from_cache(bbox)
     except Exception as e:
-        print(f"  Warning: NHD waterbody download failed: {e}")
-
-    # --- Sub-step B: Area hydrology features (river polygons) ---
-    url_area = "https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/9/query"
-    params_area = {
-        'geometry': geom_str,
-        'geometryType': 'esriGeometryEnvelope',
-        'inSR': '4326', 'outSR': '4326',
-        'spatialRel': 'esriSpatialRelIntersects',
-        'outFields': 'GNIS_NAME,FTYPE,FCODE',
-        'f': 'geojson',
-        'returnGeometry': 'true',
-        'resultRecordCount': 500,
-    }
-    print("  Downloading NHD area hydro features...")
-    try:
-        response = requests.get(url_area, params=params_area, timeout=60,
-                                headers={'User-Agent': WISAR_USER_AGENT})
-        response.raise_for_status()
-        data = response.json()
-        for f in data.get('features', []):
-            ftype = f.get('properties', {}).get('FTYPE', 0)
-            name = f.get('properties', {}).get('GNIS_NAME', '') or 'unnamed'
-            # FType 460 = Stream/River, 431 = Rapids, 336 = Canal/Ditch, 390 = Lake
-            if ftype in (460, 431, 336, 390):
-                imp = 99 if ftype in (460, 390) else 80
-                water_features.append({
-                    'geometry': shape(f['geometry']),
-                    'type': 'river_area',
-                    'ftype': ftype,
-                    'name': name,
-                    'impedance': imp
-                })
-    except Exception as e:
-        print(f"  Warning: NHD area download failed: {e}")
-
-    if water_features:
-        gdf = gpd.GeoDataFrame(water_features, crs='EPSG:4326')
-    else:
-        gdf = gpd.GeoDataFrame(columns=['geometry', 'type', 'ftype', 'name', 'impedance'], crs='EPSG:4326')
-
-    # --- Sub-step C: Flowlines (stream centerlines with Strahler stream order) ---
-    # Strahler order indicates stream size: 1st = headwater creek, 7th = major river
-    url_fl = "https://hydro.nationalmap.gov/arcgis/rest/services/nhd/MapServer/4/query"
-    params_fl = {
-        'geometry': geom_str,
-        'geometryType': 'esriGeometryEnvelope',
-        'inSR': '4326', 'outSR': '4326',
-        'spatialRel': 'esriSpatialRelIntersects',
-        'outFields': 'GNIS_NAME,FTYPE,FCODE,StreamOrde',
-        'f': 'geojson',
-        'returnGeometry': 'true',
-        'resultRecordCount': 1000,
-    }
-    flowline_count = 0
-    print("  Downloading NHD flowlines (streams/rivers)...")
-    try:
-        response = requests.get(url_fl, params=params_fl, timeout=60,
-                                headers={'User-Agent': WISAR_USER_AGENT})
-        response.raise_for_status()
-        data = response.json()
-        for feat in data.get('features', []):
-            stream_order = feat.get('properties', {}).get('StreamOrde', 0) or 0
-            fname = feat.get('properties', {}).get('GNIS_NAME', '') or 'unnamed'
-            fgeom = shape(feat['geometry'])
-            if fgeom.is_empty:
-                continue
-            # Buffer and impedance scale with stream order
-            if stream_order >= 7:
-                buf = 0.0004   # ~40m — major river
-                imp = 99
-            elif stream_order >= 5:
-                buf = 0.0001   # ~10m — medium river
-                imp = 80
-            elif stream_order >= 3:
-                buf = 0.00005  # ~5m — moderate creek
-                imp = 60
-            else:
-                buf = 0.00002  # ~2m — small seasonal creek
-                imp = 40
-            buffered = fgeom.buffer(buf)
-            if buffered and not buffered.is_empty:
-                water_features.append({
-                    'geometry': buffered,
-                    'type': 'flowline',
-                    'ftype': stream_order,
-                    'name': fname,
-                    'impedance': imp
-                })
-                flowline_count += 1
-    except Exception as e:
-        print(f"  Warning: NHD flowline download failed: {e}")
-    print(f"  NHD flowlines: {flowline_count} features added")
-    if water_features:
-        gdf = gpd.GeoDataFrame(water_features, crs='EPSG:4326')
-    else:
-        gdf = gpd.GeoDataFrame(columns=['geometry', 'type', 'ftype', 'name', 'impedance'], crs='EPSG:4326')
-    wb_count = sum(1 for w in water_features if w['type']=='waterbody')
-    ra_count = sum(1 for w in water_features if w['type']=='river_area')
-    print(f"  NHD total: {len(water_features)} features ({wb_count} waterbodies, {ra_count} river areas, {flowline_count} flowlines)")
-    return gdf
+        print(f"  WARNING: NHD snapshot read failed: {e}. Proceeding without water barriers.")
+        return empty, [{
+            'severity': 'warning',
+            'source': 'nhd',
+            'message': ('Hydrography unavailable — reading the NHD snapshot failed. '
+                        'Lakes, rivers and streams are not acting as barriers in '
+                        'these results.'),
+        }]
+    return gdf, []

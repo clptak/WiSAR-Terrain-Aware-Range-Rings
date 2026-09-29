@@ -43,8 +43,9 @@ from pipeline.outputs import (generate_probability_surface,
                               extract_contour_polygons, extract_isochrone_polygons,
                               run_analysis, run_isochrone_analysis)
 from pipeline.jacobs_masks import compute_jacobs_masks
-# OSM snapshot reader — used by downloads.py on every analysis.
-# The module is imported explicitly (not as
-# symbols) so callers do `from pipeline import osm_cache` and then
-# `osm_cache.load_osm_from_cache(bbox)`.
+# Local snapshot readers — used by downloads.py on every analysis.
+# The modules are imported explicitly (not as symbols) so callers do
+# `from pipeline import osm_cache` and then `osm_cache.load_osm_from_cache(bbox)`.
 from pipeline import osm_cache
+from pipeline import nlcd_cache
+from pipeline import nhd_cache

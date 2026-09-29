@@ -329,8 +329,8 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     print("\n[2/7] Downloading DEM...")
     dem_path = download_dem(bbox)
 
-    print("\n[3/7] Downloading NLCD...")
-    nlcd_path = download_nlcd(bbox)
+    print("\n[3/7] Loading NLCD land cover from the snapshot...")
+    nlcd_path, nlcd_warnings = download_nlcd(bbox)
 
     print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
@@ -339,8 +339,8 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     # The warnings are threaded up to the server response for the UI.
     osm_warnings = osm_features.pop('_warnings', [])
 
-    print("\n[5/7] Downloading NHD hydrology...")
-    nhd_features = download_nhd_features(bbox)
+    print("\n[5/7] Loading NHD hydrography from the snapshot...")
+    nhd_features, nhd_warnings = download_nhd_features(bbox)
 
     print("\n[6/7] Building cost surface...")
     cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features)
@@ -385,7 +385,8 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
         'isochrone_mode': True,
         'base_speed_kmh': base_speed_kmh,
         'time_intervals_hours': time_intervals_hours,
-        'warnings': osm_warnings,
+        # Data-source warnings in pipeline order; the UI shows each one.
+        'warnings': nlcd_warnings + osm_warnings + nhd_warnings,
         # Path to the 5-band Jacobs attractor masks GeoTIFF (see run_analysis)
         'jacobs_masks_path': jacobs_masks_path,
     }
@@ -404,8 +405,8 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
     print(f"  Bbox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
     print("\n[2/7] Downloading DEM...")
     dem_path = download_dem(bbox)
-    print("\n[3/7] Downloading NLCD...")
-    nlcd_path = download_nlcd(bbox)
+    print("\n[3/7] Loading NLCD land cover from the snapshot...")
+    nlcd_path, nlcd_warnings = download_nlcd(bbox)
     print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
     # Strip warnings from the osm_features dict before passing it into
@@ -413,8 +414,8 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
     # warnings are threaded up to the server response so the UI can
     # surface them to the SAR coordinator.
     osm_warnings = osm_features.pop('_warnings', [])
-    print("\n[5/7] Downloading NHD hydrology...")
-    nhd_features = download_nhd_features(bbox)
+    print("\n[5/7] Loading NHD hydrography from the snapshot...")
+    nhd_features, nhd_warnings = download_nhd_features(bbox)
     print("\n[6/7] Building cost surface...")
     cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features)
     print("\n[7/7] Computing cost-distance...")
@@ -451,7 +452,8 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
         'cost_surface_path': cost_path, 'cost_distance_path': cd_path,
         'probability_path': prob_path, 'work_dir': WORK_DIR,
         'contour_geojson': contour_geojson,
-        'warnings': osm_warnings,
+        # Data-source warnings in pipeline order; the UI shows each one.
+        'warnings': nlcd_warnings + osm_warnings + nhd_warnings,
         # Path to the 5-band Jacobs attractor masks GeoTIFF used by the
         # heatmap renderer. May be None if mask computation failed; the
         # renderer handles that gracefully (cold surface).

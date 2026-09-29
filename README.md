@@ -1,6 +1,6 @@
 # WiSAR Decision Support Tool
 
-**A Terrain-Aware Planning Aid for Wilderness Search and Rescue (v1.16)**
+**A Terrain-Aware Planning Aid for Wilderness Search and Rescue (v1.17)**
 
 A web-based spatial analysis tool for Wilderness SAR operations. Instead of drawing simple Euclidean distance rings around an Initial Planning Point (IPP), it builds an anisotropic cost surface from elevation, land cover, hydrology, and OSM linear features, then traces contours of equal travel cost across real terrain, compressing against steep slopes, dense forest, and water barriers, while expanding along trails and valleys where a person can move easily. The cost surface drives both Terrain-Aware Range Rings (TARRs) at Koester find-distance percentiles and travel-time isochrones at user-specified time bands, with KML/GeoJSON exports and a write-back path to CalTopo for any SAR team's own maps.
 
@@ -13,7 +13,7 @@ A web-based spatial analysis tool for Wilderness SAR operations. Instead of draw
 
 Given an IPP (the point where a lost person was last seen) and either a subject profile (hiker, child, dementia patient, etc.) or a travel speed, the tool:
 
-1. **Gathers geospatial data** — elevation (USGS 3DEP), land cover (NLCD 2021), and hydrology (NHD) are fetched live; trails, roads, waterways, and power lines come from a local OpenStreetMap snapshot covering all 50 states and DC, rebuilt weekly from Geofabrik extracts. Public Overpass servers are no longer queried.
+1. **Gathers geospatial data** — elevation (USGS 3DEP) is fetched live; everything else comes from snapshots on the server: land cover (Annual NLCD 2024, CONUS, refreshed yearly), hydrography (USGS NHDPlus High Resolution, every basin, refreshed quarterly), and trails, roads, waterways, and power lines (OpenStreetMap, all 50 states and DC, rebuilt weekly from Geofabrik extracts).
 2. **Builds a friction surface** — each 30m cell gets a cost multiplier based on land cover type, calibrated to off-trail speed literature (Imhof 1950). Trails, roads, and power line corridors are burned in at friction 1.0; water features from NHD and OSM act as high-impedance barriers.
 3. **Computes anisotropic cost-distance** — Dijkstra's algorithm with per-edge Tobler's Hiking Function, cross-slope penalty, and 3D surface distance.
 4. **Applies per-band calibration** — Coconino County calibration multipliers (M25, M50, M75) scale each percentile threshold independently to correct the nonlinear contraction of TARRs in rugged terrain.
@@ -53,8 +53,10 @@ app/
 ├── pipeline/              Analysis pipeline (modular package)
 │   ├── __init__.py        Public API re-exports
 │   ├── shared.py          Constants, utilities, bbox functions
-│   ├── downloads.py       Data acquisition (DEM, NLCD, NHD live; OSM from snapshot)
+│   ├── downloads.py       Data acquisition (DEM live; NLCD, NHD, OSM from snapshots)
 │   ├── osm_cache.py       Local OSM snapshot reader (weekly Geofabrik refresh)
+│   ├── nlcd_cache.py      Local NLCD snapshot reader (yearly MRLC refresh)
+│   ├── nhd_cache.py       Local NHDPlus HR snapshot reader (quarterly USGS refresh)
 │   ├── cost_surface.py    Friction surface construction
 │   ├── cost_distance.py   Dijkstra anisotropic cost-distance
 │   ├── jacobs_masks.py    Terrain-attractor masks per Jacobs (2015)
@@ -63,7 +65,10 @@ app/
 │   ├── index.html         Single-page Leaflet.js frontend, modals, accordion UI
 │   └── app.js             Application logic, calibration, CalTopo integration
 └── tools/
-    └── build_osm_cache.py Weekly OSM cache builder (memory-bounded Arrow streaming)
+    ├── build_osm_cache.py    Weekly OSM cache builder (memory-bounded Arrow streaming)
+    ├── build_nlcd_cache.py   Yearly NLCD snapshot installer
+    ├── build_hydro_cache.py  Quarterly NHDPlus HR snapshot builder (ogr2ogr streaming)
+    └── compare_sources.py    Live-vs-snapshot regression check for one IPP
 ```
 
 ## Data sources
@@ -71,9 +76,9 @@ app/
 | Data | Source | Resolution |
 |------|--------|-----------|
 | Elevation | USGS 3DEP (1/3 arc-second) | 30m |
-| Land cover | NLCD 2021 | 30m |
+| Land cover | Annual NLCD 2024 (local CONUS snapshot) | 30m |
 | Trails, roads, power lines | OpenStreetMap (weekly local snapshot, all 50 states + DC) | Vector |
-| Hydrology | NHD (USGS MapServer) — waterbodies, area features, flowlines | Vector |
+| Hydrology | USGS NHDPlus High Resolution, 1:24k (local snapshot) — waterbodies, area features, flowlines with Strahler order | Vector |
 | Subject profiles | Koester (2008), via Ferguson (2013) IGT4SAR | Statistical |
 | Terrain attractor weights | Jacobs (2015) PDEN findings | Per-feature |
 | Calibration | Coconino County Sheriff's Office (360 subjects, 253 missions) | Per-profile |
@@ -91,7 +96,7 @@ Friction multipliers range from 1.0 (trail/road/power line corridor) to 1.80 (ev
 
 Calibration multipliers are applied on the frontend before percentile distances are sent to the analysis pipeline. Each percentile (p25, p50, p75) receives its own multiplier, correcting the nonlinear contraction where terrain friction accumulates more over longer travel paths. The cost surface and cost-distance computation are unaffected; calibration adjusts only the statistical thresholds, not the terrain model.
 
-The heatmap underneath the TARR contours uses a separate visualization layer driven by Matt Jacobs's (2015) PDEN framework. Each pixel is scored by the strongest applicable terrain attractor among five categories: stream-trail intersections (weight 1.00, Jacobs's strongest empirical finding at ~10x PDEN), trails and other linear corridors (0.55), low-elevation pockets (0.35), stream proximity (0.28), and high-elevation prominence (0.18). Scores are taken as the maximum across applicable masks (not summed), matching the structure of Jacobs's findings as observations of distinct cell categories rather than additive lifts. The stream mask uses NHD flowlines at Strahler order ≥3 rather than Jacobs's original ≥5 cutoff, because Strahler ≥5 flowlines are rare on the Colorado Plateau where most Coconino-area searches occur; the relaxed cutoff includes named perennial creeks like Sycamore Creek that are operationally significant but would otherwise be excluded. The heatmap renders at full opacity across the entire search area, including past the 75th percentile, where roughly 1-in-4 finds still occur per Koester's data and where Jacobs found that linear-feature PDEN actually increases with distance from the IPP.
+The heatmap underneath the TARR contours uses a separate visualization layer driven by Matt Jacobs's (2015) PDEN framework. Each pixel is scored by the strongest applicable terrain attractor among five categories: stream-trail intersections (weight 1.00, Jacobs's strongest empirical finding at ~10x PDEN), trails and other linear corridors (0.55), low-elevation pockets (0.35), stream proximity (0.28), and high-elevation prominence (0.18). Scores are taken as the maximum across applicable masks (not summed), matching the structure of Jacobs's findings as observations of distinct cell categories rather than additive lifts. The stream mask uses NHDPlus HR flowlines at Strahler order ≥4 rather than Jacobs's original ≥5 cutoff. On the 1:100k network used through v1.16 the cutoff was 3, chosen so that named perennial creeks like Sycamore Creek (order 3 or 4 at that scale) were not excluded; the 1:24k snapshot counts more headwaters and raises every named creek by one to two orders (Sycamore Creek 6, Oak Creek 5, West Fork Oak Creek 4), so 4 reproduces the field-reviewed display while keeping those creeks in. The heatmap renders at full opacity across the entire search area, including past the 75th percentile, where roughly 1-in-4 finds still occur per Koester's data and where Jacobs found that linear-feature PDEN actually increases with distance from the IPP.
 
 Travel Time mode uses the same cost-distance pipeline but converts terrain-equivalent meters to hours using a user-supplied flat-ground speed, then contours at user-selected time intervals (2h, 4h, 6h, 8h, 10h, 12h). No Lost Person Behavior profile is required; this mode models physical capability rather than statistical find-distance likelihood.
 

@@ -112,6 +112,13 @@ def _flowline_buffer_and_impedance(stream_order):
 # STEP 4: Main read function
 # ===============================================================================
 
+def _name(value):
+    """GNIS name or 'unnamed'. GeoPandas hands back NaN, not None, for a
+    NULL name, and NaN is truthy, so a plain `value or 'unnamed'` would
+    leak NaN into the frame."""
+    return value if isinstance(value, str) and value else 'unnamed'
+
+
 def _empty_result():
     return gpd.GeoDataFrame(columns=OUTPUT_COLUMNS, geometry='geometry', crs='EPSG:4326')
 
@@ -154,7 +161,7 @@ def load_nhd_from_cache(bbox):
                 'geometry': r.geometry,
                 'type': 'waterbody',
                 'ftype': int(r.get('ftype') or 0),
-                'name': r.get('gnis_name') or 'unnamed',
+                'name': _name(r.get('gnis_name')),
                 'impedance': 99,
             })
             counts['waterbody'] += 1
@@ -176,7 +183,7 @@ def load_nhd_from_cache(bbox):
                 'geometry': r.geometry,
                 'type': 'river_area',
                 'ftype': ftype,
-                'name': r.get('gnis_name') or 'unnamed',
+                'name': _name(r.get('gnis_name')),
                 'impedance': imp,
             })
             counts['river_area'] += 1
@@ -203,7 +210,7 @@ def load_nhd_from_cache(bbox):
                 'geometry': buffered,
                 'type': 'flowline',
                 'ftype': order,
-                'name': r.get('gnis_name') or 'unnamed',
+                'name': _name(r.get('gnis_name')),
                 'impedance': imp,
             })
             counts['flowline'] += 1

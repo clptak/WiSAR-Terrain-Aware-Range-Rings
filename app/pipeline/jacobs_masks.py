@@ -45,18 +45,30 @@ from pipeline.shared import WORK_DIR
 
 # Stream proximity: Jacobs's paper used Strahler >= 5 as the cutoff for
 # meaningful standalone stream-PDEN signal in his (mostly eastern/PNW) data.
-# In Coconino / Colorado Plateau terrain, Strahler 5+ flowlines are rare —
-# Sycamore Creek (a named, operationally significant feature) is Strahler
-# 3 or 4 in NHD, and a strict >=5 filter empties the stream mask entirely
-# for most analyses we run. Per the design principle in
-# jacobs_heatmap_design_notes.md ("Use Jacobs's findings to decide WHAT to
-# highlight, not to claim HOW MUCH to weight it"), we lower the cutoff to
-# 3 to match the operational reality of where SAR coordinators are
-# searching. The cost-surface downloader already treats Strahler 3 as the
-# "moderate creek" cutoff (downloads.py: 5m buffer, impedance 60), so this
-# brings the Jacobs mask in line with the existing cost-surface definition
-# of a significant water feature.
-JACOBS_STREAM_STRAHLER_MIN = 3
+#
+# This constant is tied to the resolution of the stream network it is
+# applied to, because Strahler order counts mapped headwaters:
+#
+#   v1.15 (1:100k NHDPlus V2 via the USGS MapServer): order 5+ was rare on
+#   the Colorado Plateau — Sycamore Creek sat at 3 or 4 and a strict >=5
+#   emptied the stream mask for most analyses — so the cutoff was lowered
+#   to 3 after first-day field testing in Sycamore Canyon.
+#
+#   v1.17 (1:24k NHDPlus HR from the local snapshot): the denser network
+#   raises every named creek by one to two orders. Measured on the Oak
+#   Creek bbox: Sycamore Creek 6, Oak Creek and Pumphouse Wash 5, West
+#   Fork Oak Creek and Dry Creek 4. Keeping the cutoff at 3 grew the
+#   stream mask 77% and stream-trail intersections 51% versus the
+#   field-reviewed v1.15 display, mostly from unnamed side drainages.
+#   A cutoff of 4 reproduces that display within 3–10% (5,612 vs 5,431
+#   stream cells; 2,557 vs 2,321 intersection cells) while keeping the
+#   named side creeks; 5 would drop West Fork and Dry Creek. So: 4.
+#
+# Per the design principle in jacobs_heatmap_design_notes.md ("Use Jacobs's
+# findings to decide WHAT to highlight, not to claim HOW MUCH to weight
+# it"), the cutoff follows operational reality rather than the paper. If
+# the stream data source changes resolution again, re-measure this.
+JACOBS_STREAM_STRAHLER_MIN = 4
 
 # Stream buffer for proximity mask (~80m). Jacobs's paper used cumulative
 # track offsets up to 200m but his stronger PDEN findings came from offsets
