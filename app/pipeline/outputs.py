@@ -332,7 +332,7 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     print("\n[3/7] Downloading NLCD...")
     nlcd_path = download_nlcd(bbox)
 
-    print("\n[4/7] Downloading OSM features...")
+    print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
     # Strip warnings from the osm_features dict so build_cost_surface sees
     # only the expected 'trails'/'roads'/'waterways'/'powerlines' keys.
@@ -406,7 +406,7 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
     dem_path = download_dem(bbox)
     print("\n[3/7] Downloading NLCD...")
     nlcd_path = download_nlcd(bbox)
-    print("\n[4/7] Downloading OSM features...")
+    print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
     # Strip warnings from the osm_features dict before passing it into
     # build_cost_surface (which doesn't expect a '_warnings' key). The

@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 # ===============================================================================
 # Script:       tools/build_osm_cache.py
-# Purpose:      Build or refresh the local OSM cache used by the WiSAR pipeline
-#               as a fallback when public Overpass endpoints fail. Downloads
-#               Geofabrik state-level PBF extracts, filters them with
-#               osmium-tool to just the feature categories used by the live
-#               OSM path (trails, roads, waterways, power lines), and writes
-#               a single spatially-indexed GeoPackage to
-#               /var/www/sar.weleber.net/cache/osm/.
+# Purpose:      Build or refresh the local OSM snapshot that the WiSAR
+#               pipeline reads on every analysis (it has been the only OSM
+#               source since v1.16; before that it was a fallback for
+#               Overpass outages). Downloads Geofabrik state-level PBF
+#               extracts, filters them with osmium-tool to the feature
+#               categories the pipeline uses (trails, roads, waterways,
+#               power lines), and writes a single spatially-indexed
+#               GeoPackage to /var/www/sar.weleber.net/cache/osm/.
+#
+#               If this job stops running, every analysis warns the
+#               coordinator once the snapshot is more than 14 days old
+#               (see OSM_CACHE_STALE_DAYS in pipeline/downloads.py).
 #
 #               Intended to run weekly via cron. Safe to re-run: writes to a
 #               temporary GeoPackage first and only replaces the live cache
@@ -395,7 +400,8 @@ def _split_batch(batch_gdf):
         batch_gdf['waterway'] = None
 
     # Build boolean masks — vectorized .isin() respects NaN correctly.
-    # Precedence matches the live Overpass path: trails > roads > waterways > powerlines.
+    # Precedence matches the classification the pipeline has always used:
+    # trails > roads > waterways > powerlines.
     trails_mask = batch_gdf['highway'].isin(TRAIL_TAGS)
     roads_mask = batch_gdf['highway'].isin(ROAD_TAGS) & ~trails_mask
     waterways_mask = (batch_gdf['waterway'].isin(WATERWAY_TAGS)

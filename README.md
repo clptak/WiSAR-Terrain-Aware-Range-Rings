@@ -1,6 +1,6 @@
 # WiSAR Decision Support Tool
 
-**A Terrain-Aware Planning Aid for Wilderness Search and Rescue (v1.15)**
+**A Terrain-Aware Planning Aid for Wilderness Search and Rescue (v1.16)**
 
 A web-based spatial analysis tool for Wilderness SAR operations. Instead of drawing simple Euclidean distance rings around an Initial Planning Point (IPP), it builds an anisotropic cost surface from elevation, land cover, hydrology, and OSM linear features, then traces contours of equal travel cost across real terrain, compressing against steep slopes, dense forest, and water barriers, while expanding along trails and valleys where a person can move easily. The cost surface drives both Terrain-Aware Range Rings (TARRs) at Koester find-distance percentiles and travel-time isochrones at user-specified time bands, with KML/GeoJSON exports and a write-back path to CalTopo for any SAR team's own maps.
 
@@ -13,7 +13,7 @@ A web-based spatial analysis tool for Wilderness SAR operations. Instead of draw
 
 Given an IPP (the point where a lost person was last seen) and either a subject profile (hiker, child, dementia patient, etc.) or a travel speed, the tool:
 
-1. **Downloads geospatial data** — elevation (USGS 3DEP), land cover (NLCD 2021), trails, roads, and power lines (OpenStreetMap), and hydrology (NHD). When public Overpass servers are unavailable, the pipeline falls through to a locally-maintained OSM cache covering AZ, CA, UT, NV, and NM.
+1. **Gathers geospatial data** — elevation (USGS 3DEP), land cover (NLCD 2021), and hydrology (NHD) are fetched live; trails, roads, waterways, and power lines come from a local OpenStreetMap snapshot covering all 50 states and DC, rebuilt weekly from Geofabrik extracts. Public Overpass servers are no longer queried.
 2. **Builds a friction surface** — each 30m cell gets a cost multiplier based on land cover type, calibrated to off-trail speed literature (Imhof 1950). Trails, roads, and power line corridors are burned in at friction 1.0; water features from NHD and OSM act as high-impedance barriers.
 3. **Computes anisotropic cost-distance** — Dijkstra's algorithm with per-edge Tobler's Hiking Function, cross-slope penalty, and 3D surface distance.
 4. **Applies per-band calibration** — Coconino County calibration multipliers (M25, M50, M75) scale each percentile threshold independently to correct the nonlinear contraction of TARRs in rugged terrain.
@@ -23,11 +23,11 @@ Given an IPP (the point where a lost person was last seen) and either a subject 
 ## Key features
 
 - **Two analysis modes:** TARR Analysis (Koester-driven percentile envelope around an IPP) and Travel Time (reachability isochrones at a given travel speed).
-- **Jacobs-driven heatmap:** within-envelope color reflects per-pixel terrain-attractor strength per Jacobs (2015), with stream-trail intersections rendering hottest (their strongest PDEN finding), trails next, then low-elevation pockets, streams, and high-elevation prominence. Renders at full opacity across the entire search area, including past the 75th percentile, where roughly 1-in-4 finds still occur.
+- **Jacobs-driven heatmap (optional layer):** within-envelope color reflects per-pixel terrain-attractor strength per Jacobs (2015), with stream-trail intersections rendering hottest (their strongest PDEN finding), trails next, then low-elevation pockets, streams, and high-elevation prominence. Renders at full opacity across the entire search area, including past the 75th percentile, where roughly 1-in-4 finds still occur. Off by default since v1.16; enable it from the Map Layers toggles.
 - **28 subject categories** from Lost Person Behavior (Koester 2008) with eco-region and terrain selectors.
 - **Per-band calibration** — profile-specific multipliers at each percentile threshold, validated against 360 historical subjects from 253 Coconino County missions.
 - **CalTopo write-back, any team:** push TARR contours or travel-time isochrones to a CalTopo map as named Shape features. Coconino County SAR uses the team's stored credentials by default; other teams enter their own CalTopo API credentials in the UI and the tool passes them through without storing.
-- **Resilient OSM data** — three live Overpass mirrors with automatic failover, plus a weekly-refreshed local cache fallback covering all 50 states and DC, built from Geofabrik extracts.
+- **Predictable OSM data** — trails, roads, waterways, and power lines are read from a weekly-refreshed local snapshot covering all 50 states and DC, built from Geofabrik extracts. No dependency on public Overpass servers; the tool warns if the snapshot is more than 14 days old.
 - **KML and GeoJSON export** of TARR or travel-time contours for CalTopo, Google Earth, TAK/CloudTAK, QGIS, and Avenza.
 - **GeoTIFF downloads** of cost-distance, cost surface, and probability rasters.
 
@@ -53,8 +53,8 @@ app/
 ├── pipeline/              Analysis pipeline (modular package)
 │   ├── __init__.py        Public API re-exports
 │   ├── shared.py          Constants, utilities, bbox functions
-│   ├── downloads.py       Data acquisition (DEM, NLCD, OSM, NHD) with caching
-│   ├── osm_cache.py       Local OSM cache fallback (weekly Geofabrik refresh)
+│   ├── downloads.py       Data acquisition (DEM, NLCD, NHD live; OSM from snapshot)
+│   ├── osm_cache.py       Local OSM snapshot reader (weekly Geofabrik refresh)
 │   ├── cost_surface.py    Friction surface construction
 │   ├── cost_distance.py   Dijkstra anisotropic cost-distance
 │   ├── jacobs_masks.py    Terrain-attractor masks per Jacobs (2015)
@@ -72,7 +72,7 @@ app/
 |------|--------|-----------|
 | Elevation | USGS 3DEP (1/3 arc-second) | 30m |
 | Land cover | NLCD 2021 | 30m |
-| Trails, roads, power lines | OpenStreetMap (Overpass: 3 mirrors + local cache fallback) | Vector |
+| Trails, roads, power lines | OpenStreetMap (weekly local snapshot, all 50 states + DC) | Vector |
 | Hydrology | NHD (USGS MapServer) — waterbodies, area features, flowlines | Vector |
 | Subject profiles | Koester (2008), via Ferguson (2013) IGT4SAR | Statistical |
 | Terrain attractor weights | Jacobs (2015) PDEN findings | Per-feature |

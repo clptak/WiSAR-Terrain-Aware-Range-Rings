@@ -51,7 +51,7 @@ app/
 |------|--------|-----------|
 | Elevation | USGS 3DEP (1/3 arc-second) | 30m |
 | Land cover | NLCD 2021 | 30m |
-| Trails & roads | OpenStreetMap (Overpass API) | Vector |
+| Trails & roads | OpenStreetMap (weekly local snapshot) | Vector |
 | Hydrology | NHD (USGS MapServer) | Vector |
 | Subject profiles | Koester (2008), via Ferguson (2013) IGT4SAR | Statistical |
 

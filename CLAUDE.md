@@ -21,8 +21,9 @@ overlays, GeoTIFFs, KML/GeoJSON, and a push to CalTopo.
 ## The three things most likely to bite
 
 **Everything is synchronous.** `/api/analyze` blocks for *minutes* — a
-pure-Python `heapq` Dijkstra over up to 1000×1000 cells plus roughly six
-external HTTP fetches with 20–120 s timeouts each. The front end fakes progress
+pure-Python `heapq` Dijkstra over up to 1000×1000 cells plus five
+external HTTP fetches with 60–120 s timeouts each and a local GeoPackage
+read for OSM. The front end fakes progress
 with an 8-second message rotator; it is not real progress. The long gunicorn and
 nginx timeouts that make this work are configured **only on the server**, so any
 timeout change there can silently break the app.
@@ -52,8 +53,9 @@ raster paths.
   for front-end compatibility.
 - **CalTopo TARR descriptions are word-for-word frozen** because field reports
   reference the wording.
-- **`WISAR_USER_AGENT` is mandatory** — Overpass returns 406 to the default
-  requests UA.
+- **`WISAR_USER_AGENT`** is still sent to 3DEP, MRLC and NHD. It was
+  mandatory while the live Overpass path existed (406 to the default
+  requests UA); that path was retired in v1.16, but keep the header.
 - The `.png` routes are more specific than `/<filename>`; do not add a
   `<filename>` variant that shadows them.
 
@@ -74,8 +76,9 @@ systemd unit — `CALTOPO_ACCOUNT_ID`, `CALTOPO_CREDENTIAL_ID`,
 app only warns if they are missing, so a broken export looks like a silent
 no-op.
 
-Every analysis hits the network live: USGS 3DEP, MRLC WMS, three Overpass
-mirrors, three NHD MapServer layers. Nothing is HTTP-cached.
+Every analysis hits the network live: USGS 3DEP, MRLC WMS, three NHD
+MapServer layers. Nothing is HTTP-cached. OSM features never touch the
+network; they come from the local snapshot below.
 
 `app/requirements.txt` was captured from the production venv. The geospatial
 stack is tightly coupled — rasterio, geopandas, pyogrio and fiona all bind the
@@ -88,8 +91,11 @@ analysis before deploying. System packages (`gdal-bin`, `libgdal-dev`,
 `/var/www/sar.weleber.net/cache/osm/` holds `osm_cache.gpkg` plus metadata,
 rebuilt weekly by cron from `tools/build_osm_cache.py` (51 Geofabrik PBFs, every state plus DC,
 filtered with `osmium`, streamed as Arrow batches — it OOM'd on California
-before the batching rewrite). It is a **failure-only fallback**: live Overpass
-responses are never cached into it.
+before the batching rewrite). Since v1.16 it is the **only** OSM source;
+there is no live Overpass path. `download_osm_features` keeps its name for
+the callers, reads the snapshot, and attaches a warning when it is older
+than `OSM_CACHE_STALE_DAYS` (14). If the cron job dies, that warning is
+the only symptom.
 
 Cache paths are hardcoded in **two** places — `pipeline/osm_cache.py` and
 `tools/build_osm_cache.py` — deliberately, so cron does not need the package on

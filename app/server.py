@@ -209,8 +209,8 @@ def run_analysis_endpoint():
         with rasterio.open(result['probability_path']) as src:
             bounds = src.bounds
         contour_geojson = result.get('contour_geojson', None)
-        # Data-source warnings (e.g., OSM fell back to cache, or cache was
-        # unavailable entirely). Default to empty list so the frontend can
+        # Data-source warnings (e.g., OSM snapshot missing, stale, or not
+        # covering the area). Default to empty list so the frontend can
         # always iterate over it without a null check.
         warnings = result.get('warnings', [])
         return jsonify({'status':'ok','analysis_id':analysis_id,

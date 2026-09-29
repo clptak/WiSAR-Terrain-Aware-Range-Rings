@@ -43,8 +43,8 @@ from pipeline.outputs import (generate_probability_surface,
                               extract_contour_polygons, extract_isochrone_polygons,
                               run_analysis, run_isochrone_analysis)
 from pipeline.jacobs_masks import compute_jacobs_masks
-# OSM cache fallback utilities — exposed for use by downloads.py and
-# tools/build_osm_cache.py. The module is imported explicitly (not as
+# OSM snapshot reader — used by downloads.py on every analysis.
+# The module is imported explicitly (not as
 # symbols) so callers do `from pipeline import osm_cache` and then
 # `osm_cache.load_osm_from_cache(bbox)`.
 from pipeline import osm_cache

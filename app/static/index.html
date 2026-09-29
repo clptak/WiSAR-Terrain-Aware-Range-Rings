@@ -16,7 +16,7 @@
      
      Author:  Jamie F. Weleber
      Created: March 2026
-     Version: 1.14
+     Version: 1.16
      ============================================================ -->
 <html lang="en">
 <!-- ============================================================
@@ -461,6 +461,13 @@
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
             <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
             <div style="margin-bottom:24px;">
+    			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.16 &#8212; September 29, 2026</h3>
+    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+        			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Live Overpass retired:</span> Trails, roads, waterways, and power lines now come exclusively from the weekly OpenStreetMap snapshot (Geofabrik extracts for all 50 states and DC, rebuilt every Sunday). The public Overpass mirrors had become the single largest time cost in an analysis &mdash; three 20-second timeouts before the cache was even consulted &mdash; and data up to a week old is operationally equivalent for trail and road networks. The &ldquo;live servers unavailable&rdquo; notice no longer appears; a warning is shown instead if the snapshot is more than 14 days old, which means the weekly rebuild has stopped running.</p>
+        			<p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Terrain Attractor Priority off by default:</span> The Jacobs (2015) heatmap is no longer drawn automatically in either mode. TARR contours and travel-time isochrones render directly over the basemap; enable the heatmap from the Map Layers toggles when wanted. Raster overlays now sit in their own map pane beneath the contour lines, so toggling a raster on never dims the contours or their labels.</p>
+    			</div>
+    		</div>
+            <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.15 &#8212; May 14, 2026</h3>
     			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Jacobs Pure heatmap as default:</span> The default heatmap underneath the TARR contours is now driven by Matt Jacobs's (2015) terrain-attractor framework. Each pixel is colored by the strongest applicable empirical attractor signal &mdash; stream-trail intersections, trails/roads/power-line ROWs, low-elevation pockets, streams, and high-elevation prominence &mdash; independent of cost-distance position from the IPP. The TARR contours still mark the p25/p50/p75 cost-distance envelope on top, so coordinators see both the cost-distance reach and the within-envelope priority. Replaces the prior percentile-band heatmap.</p>
@@ -654,9 +661,9 @@
                 <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:30%;">Elevation</td><td style="padding:5px 0;">USGS 3DEP 1/3 arc-second, resampled to 30m</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Land cover</td><td style="padding:5px 0;">NLCD 2021 (MRLC/USGS), 30m native</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Trails &amp; roads</td><td style="padding:5px 0;">OpenStreetMap via Overpass API</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Power line corridors</td><td style="padding:5px 0;">OpenStreetMap via Overpass API (power=line, power=minor_line)</td></tr>
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Waterways</td><td style="padding:5px 0;">OpenStreetMap via Overpass API</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Trails &amp; roads</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot (all 50 states + DC)</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Power line corridors</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot (power=line, power=minor_line)</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Waterways</td><td style="padding:5px 0;">OpenStreetMap, weekly Geofabrik snapshot</td></tr>
                     <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Search segments</td><td style="padding:5px 0;">CalTopo API (user-provided Map ID)</td></tr>
                 </table>
             </div>
@@ -704,7 +711,7 @@
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Map layers</h3>
                 <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
-                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:35%;">Terrain Attractor Priority</td><td style="padding:5px 0;">Per-pixel priority surface colored by the strongest applicable Jacobs (2015) terrain-attractor signal. Hot (red) = stream-trail intersection. Warm (orange-yellow) = trail / road / power-line ROW proximity. Cool-warm (yellow-green) = low-elevation pocket or stream proximity. Cool (blue) = no attractor signal. Renders at full opacity across the entire cost-distance raster &mdash; no fade past p75 &mdash; honoring Jacobs's finding that linear-feature PDEN increases with distance from the IPP. Default: on.</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:35%;">Terrain Attractor Priority</td><td style="padding:5px 0;">Per-pixel priority surface colored by the strongest applicable Jacobs (2015) terrain-attractor signal. Hot (red) = stream-trail intersection. Warm (orange-yellow) = trail / road / power-line ROW proximity. Cool-warm (yellow-green) = low-elevation pocket or stream proximity. Cool (blue) = no attractor signal. Renders at full opacity across the entire cost-distance raster &mdash; no fade past p75 &mdash; honoring Jacobs's finding that linear-feature PDEN increases with distance from the IPP. Default: off (v1.16); enable from the Map Layers toggles.</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Percentile Contours (TARRs)</td><td style="padding:5px 0;">Vector contour polygons at 25th, 50th, 75th percentile thresholds. Default: on (when percentiles provided).</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Travel Time Contours</td><td style="padding:5px 0;">Vector contour polygons at user-selected time intervals (Travel Time mode only). Color-coded outline-only rendering with labels at each contour boundary. Default: on.</td></tr>
                     <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Terrain Difficulty</td><td style="padding:5px 0;">Local slope + landcover difficulty per cell, independent of distance from IPP. Default: off.</td></tr>
@@ -756,7 +763,7 @@
                 <p style="font-size:12px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
             </div>
 
-            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: May 04, 2026 | Version 1.14</p>
+            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 29, 2026 | Version 1.16</p>
 
             <div style="text-align:center;">
                 <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
@@ -1316,8 +1323,8 @@
                     <svg class="acc-chevron" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
                 <div class="acc-body">
-					<!-- Data-source warnings (OSM cache fallback, etc.) — populated by app.js when
-                         the pipeline used a non-primary data source. Placed inside accAnalysis so
+					<!-- Data-source warnings (OSM snapshot missing, stale, or not covering the
+                         area) — populated by app.js when the pipeline degraded. Placed inside accAnalysis so
                          warnings appear alongside results and follow accAnalysis's expand/collapse
                          behavior (the section auto-expands after analysis completes). -->
                     <div class="data-warnings" id="analysisDataWarnings"></div>
@@ -1328,7 +1335,7 @@
                             <span style="color:var(--text-muted);font-size:16px;">-</span>
                         </div>
                         <div id="toggleContent">
-                            <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;" title="Per-pixel terrain attractor strength per Jacobs (2015): stream-trail intersections, trails, low-elevation pockets, streams, high-elevation prominence."><input type="checkbox" id="costToggle" checked onchange="if(this.checked){window.costOverlay.addTo(map);}else{map.removeLayer(window.costOverlay);}"> Terrain Attractor Priority</label>
+                            <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;" title="Per-pixel terrain attractor strength per Jacobs (2015): stream-trail intersections, trails, low-elevation pockets, streams, high-elevation prominence."><input type="checkbox" id="costToggle" onchange="if(this.checked){window.costOverlay.addTo(map);}else{map.removeLayer(window.costOverlay);}"> Terrain Attractor Priority</label>
                             <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="pctToggle" checked onchange="if(this.checked){contourLayer.addTo(map);}else{map.removeLayer(contourLayer);}"> Percentile Contours (TARRs)</label>
                             <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="terrainToggle" onchange="if(this.checked){window.terrainOverlay.addTo(map);}else{map.removeLayer(window.terrainOverlay);}"> Terrain Difficulty</label>
                             <div id="downloadSection" class="hidden" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">

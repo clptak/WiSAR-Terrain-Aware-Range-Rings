@@ -1,9 +1,10 @@
 # ===============================================================================
 # Module:       pipeline/downloads.py
 # Purpose:      Data acquisition for the WiSAR analysis pipeline.
-#               Downloads elevation (USGS 3DEP), land cover (NLCD), trail/road
-#               networks and power line corridors (OpenStreetMap), and hydrology
-#               (NHD) data for the analysis bounding box.
+#               Downloads elevation (USGS 3DEP), land cover (NLCD), and
+#               hydrology (NHD) for the analysis bounding box, and reads
+#               trail/road networks and power line corridors (OpenStreetMap)
+#               from the weekly local snapshot.
 # Author:       Jamie F. Weleber
 # Created:      March 2026
 # ===============================================================================
@@ -14,7 +15,7 @@ from rasterio.warp import reproject, Resampling  # Reproject rasters between CRS
 import requests                 # HTTP client for downloading data from web APIs
 import os                       # File path manipulation
 import math                     # Trigonometric functions for coordinate math
-from shapely.geometry import shape, LineString  # Vector geometry construction
+from shapely.geometry import shape  # Vector geometry construction
 import geopandas as gpd         # GeoDataFrames: pandas with geometry columns
 
 from pipeline.shared import WORK_DIR   # Shared temp directory for intermediate files
@@ -24,15 +25,14 @@ from pipeline.shared import WORK_DIR   # Shared temp directory for intermediate 
 # MODULE CONSTANTS
 # ===============================================================================
 
-# User-Agent identifier sent on every outbound HTTP request. Setting this
-# explicitly is necessary because the main public Overpass instance
-# (overpass-api.de) rejects the default 'python-requests/X.Y.Z' User-Agent
-# with HTTP 406 Not Acceptable as part of its anti-abuse policy. The other
-# endpoints (USGS 3DEP, MRLC/NLCD, NHD) don't require identification today
-# but appreciate it — the URL in the UA gives the service operator a way
-# to contact us if our traffic ever causes issues. Bump the version string
-# when cutting a new WiSAR release.
-WISAR_USER_AGENT = 'WiSAR-DST/1.11 (+https://sar.weleber.net)'
+# User-Agent identifier sent on every outbound HTTP request (USGS 3DEP,
+# MRLC/NLCD, NHD). None of these endpoints require identification today,
+# but the URL in the UA gives the service operator a way to contact us if
+# our traffic ever causes issues. It was originally mandatory because the
+# public Overpass API rejected the default 'python-requests' UA with HTTP
+# 406; the live Overpass path was retired in v1.16. Bump the version
+# string when cutting a new WiSAR release.
+WISAR_USER_AGENT = 'WiSAR-DST/1.16 (+https://sar.weleber.net)'
 
 
 # ===============================================================================
@@ -167,11 +167,28 @@ def download_nlcd(bbox, output_path=None):
 
 
 # ===============================================================================
-# STEP 3: Download trail/road networks and power line corridors (OpenStreetMap)
+# STEP 3: Load trail/road networks and power line corridors (OpenStreetMap)
 # ===============================================================================
 
+# Age beyond which the weekly OSM snapshot is reported as stale. The cache
+# is rebuilt every Sunday by cron, so anything past two weeks means at least
+# two consecutive builds failed. With no live Overpass path left, a broken
+# cron job would otherwise be invisible to the coordinator.
+OSM_CACHE_STALE_DAYS = 14
+
+
+def _empty_osm_features():
+    """Empty GeoDataFrames in the schema build_cost_surface() expects."""
+    return {
+        'trails': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
+        'roads': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
+        'waterways': gpd.GeoDataFrame(columns=['geometry','type','name','width'], crs='EPSG:4326'),
+        'powerlines': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
+    }
+
+
 def download_osm_features(bbox):
-    """Download trail, road, waterway, and power line features from OpenStreetMap.
+    """Load trail, road, waterway, and power line features from the local OSM cache.
 
     OSM is the primary source for trail and road networks because it has the
     most complete open dataset for backcountry trails — USGS topographic
@@ -185,19 +202,14 @@ def download_osm_features(bbox):
     linear features). IGT4SAR (Ferguson 2012) modeled power line ROWs as
     reduced-impedance travel corridors.
 
-    The Overpass API is a specialized query engine for OSM data. We request
-    "ways" (lines) tagged as highways (trails/roads), waterways (streams),
-    or power infrastructure (transmission/distribution lines).
-    The response includes both the way geometries and the individual nodes
-    that define them — the "> ; out skel qt" directive fetches these nodes.
-
-    Fallback behavior (v1.11+): If all public Overpass endpoints fail, we
-    fall through to a local cache built weekly from Geofabrik state extracts
-    (see pipeline/osm_cache.py and tools/build_osm_cache.py). The cache
-    covers all 50 states and DC. If the analysis bbox falls outside cache
-    coverage or the cache is missing, we return empty GeoDataFrames and
-    attach a warning that the frontend surfaces to the user — the analysis
-    still completes, it just won't include trail-corridor friction.
+    History: v1.00–v1.15 queried the public Overpass API live, with the
+    local cache as a failure-only fallback (v1.11+). The public mirrors
+    failed often enough that the retry chain became the single largest
+    time cost in the pipeline, so as of v1.16 the weekly Geofabrik snapshot
+    (see pipeline/osm_cache.py and tools/build_osm_cache.py) is the only
+    source. Data up to a week old is operationally equivalent for trail
+    and road networks. The function keeps its "download_" name because
+    callers and the package re-exports reference it.
 
     Args:
         bbox: (west, south, east, north) in decimal degrees
@@ -207,179 +219,82 @@ def download_osm_features(bbox):
         surfacing to the user. The '_warnings' key is stripped before the
         dict reaches build_cost_surface(), which doesn't expect it.
     """
-    west, south, east, north = bbox
-    # Overpass API uses (south, west, north, east) order — different from
-    # the (west, south, east, north) convention used by most GIS tools
-    bbox_str = f"{south},{west},{north},{east}"
-    query = f"""
-    [out:json][timeout:60];
-    (
-      way["highway"~"path|footway|track|bridleway|cycleway"]({bbox_str});
-      way["highway"~"residential|tertiary|secondary|primary|trunk|motorway|unclassified|service"]({bbox_str});
-      way["waterway"~"stream|river|canal|drain|ditch"]({bbox_str});
-      way["power"~"line|minor_line"]({bbox_str});
-    );
-    out body;
-    >;
-    out skel qt;
-    """
-    print("  Downloading OSM trails, roads, waterways, and power lines...")
-    # Multiple Overpass API endpoints — the primary server (overpass-api.de)
-    # is volunteer-run and frequently times out under load. We try each
-    # mirror in order with a shorter per-attempt timeout, so a single
-    # server outage doesn't block the entire analysis.
-    overpass_endpoints = [
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.private.coffee/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-    ]
-    data = None
-    for endpoint in overpass_endpoints:
-        try:
-            print(f"    Trying {endpoint}...")
-            response = requests.post(
-                endpoint,
-                data={'data': query},
-                timeout=20,
-                headers={'User-Agent': WISAR_USER_AGENT},
-            )
-            response.raise_for_status()
-            data = response.json()
-            print(f"    Success via {endpoint}")
-            break
-        except Exception as e:
-            print(f"    Failed: {e}")
-            continue
-    if data is None:
-        # All public Overpass endpoints failed. Before giving up, try the
-        # local cache (see pipeline/osm_cache.py). If the cache is available
-        # and covers this bbox, we return its features; otherwise we fall
-        # back to empty GeoDataFrames and attach a user-visible warning.
-        print("  All Overpass endpoints failed. Attempting local cache fallback...")
-        from pipeline import osm_cache
+    from pipeline import osm_cache
 
-        if not osm_cache.cache_is_available():
-            print("  WARNING: OSM cache not present. Analysis will proceed without trail data.")
-            return {
-                'trails': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'roads': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'waterways': gpd.GeoDataFrame(columns=['geometry','type','name','width'], crs='EPSG:4326'),
-                'powerlines': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                '_warnings': [{
-                    'severity': 'warning',
-                    'source': 'osm',
-                    'message': ('OSM trail/road data unavailable — live servers failed '
-                                'and no cached data is installed on this server. '
-                                'Analysis proceeded using land cover only; trail '
-                                'corridors will not appear in results.'),
-                }],
-            }
+    print("  Loading OSM trails, roads, waterways, and power lines from the weekly snapshot...")
 
-        if not osm_cache.cache_covers_bbox(bbox):
-            meta = osm_cache.read_cache_metadata()
-            state_list = meta.get('states', [])
-            # With the whole country cached the list is 51 slugs long;
-            # a count reads better in the warning banner than the roll call.
-            if len(state_list) > 12:
-                states = f'{len(state_list)} US states'
-            else:
-                states = ', '.join(state_list) or 'unknown'
-            print(f"  WARNING: Analysis bbox outside cache coverage ({states}). "
-                  f"Proceeding without trail data.")
-            return {
-                'trails': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'roads': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'waterways': gpd.GeoDataFrame(columns=['geometry','type','name','width'], crs='EPSG:4326'),
-                'powerlines': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                '_warnings': [{
-                    'severity': 'warning',
-                    'source': 'osm',
-                    'message': (f'OSM trail/road data unavailable — live servers failed '
-                                f'and no cached data is available for this area '
-                                f'(cache covers {states}). Analysis proceeded using '
-                                f'land cover only; trail corridors will not appear '
-                                f'in results.'),
-                }],
-            }
+    if not osm_cache.cache_is_available():
+        print("  WARNING: OSM cache not present. Analysis will proceed without trail data.")
+        result = _empty_osm_features()
+        result['_warnings'] = [{
+            'severity': 'warning',
+            'source': 'osm',
+            'message': ('OSM trail/road data unavailable — the weekly OSM snapshot '
+                        'is not installed on this server. Analysis proceeded using '
+                        'land cover only; trail corridors will not appear in results.'),
+        }]
+        return result
 
-        # Cache is present and covers the bbox — load from it.
-        try:
-            cached = osm_cache.load_osm_from_cache(bbox)
-            age = osm_cache.cache_age_days()
-            meta = osm_cache.read_cache_metadata()
-            built_at = meta.get('built_at', 'unknown date')
-            # Strip the time portion for a cleaner user-facing date
-            built_date = built_at.split('T')[0] if 'T' in built_at else built_at
-            age_str = f"{age:.1f} days old" if age is not None else "age unknown"
-            print(f"  Cache hit: built {built_date} ({age_str})")
-            cached['_warnings'] = [{
-                'severity': 'info',
-                'source': 'osm',
-                'message': (f'OSM live servers unavailable — using cached data from '
-                            f'{built_date} ({age_str}).'),
-            }]
-            return cached
-        except Exception as e:
-            # Cache read failed despite the availability check passing —
-            # probably a filesystem/permissions issue. Degrade to empty
-            # results with a clear warning; don't crash the analysis.
-            print(f"  WARNING: OSM cache read failed: {e}")
-            return {
-                'trails': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'roads': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                'waterways': gpd.GeoDataFrame(columns=['geometry','type','name','width'], crs='EPSG:4326'),
-                'powerlines': gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-                '_warnings': [{
-                    'severity': 'warning',
-                    'source': 'osm',
-                    'message': ('OSM trail/road data unavailable — live servers '
-                                'failed and cache read encountered an error. '
-                                'Analysis proceeded using land cover only; trail '
-                                'corridors will not appear in results.'),
-                }],
-            }
+    if not osm_cache.cache_covers_bbox(bbox):
+        meta = osm_cache.read_cache_metadata()
+        state_list = meta.get('states', [])
+        # With the whole country cached the list is 51 slugs long;
+        # a count reads better in the warning banner than the roll call.
+        if len(state_list) > 12:
+            states = f'{len(state_list)} US states'
+        else:
+            states = ', '.join(state_list) or 'unknown'
+        print(f"  WARNING: Analysis bbox outside cache coverage ({states}). "
+              f"Proceeding without trail data.")
+        result = _empty_osm_features()
+        result['_warnings'] = [{
+            'severity': 'warning',
+            'source': 'osm',
+            'message': (f'OSM trail/road data unavailable — the weekly OSM snapshot '
+                        f'does not cover this area (snapshot covers {states}). '
+                        f'Analysis proceeded using land cover only; trail corridors '
+                        f'will not appear in results.'),
+        }]
+        return result
 
-    # --- Sub-step A: Build a node lookup table ---
-    # Overpass returns nodes and ways separately. Nodes are the individual
-    # coordinate points; ways reference nodes by ID to define their geometry.
-    nodes = {}
-    for el in data.get('elements', []):
-        if el['type'] == 'node':
-            nodes[el['id']] = (el['lon'], el['lat'])
+    try:
+        cached = osm_cache.load_osm_from_cache(bbox)
+    except Exception as e:
+        # Cache read failed despite the availability check passing —
+        # probably a filesystem/permissions issue. Degrade to empty
+        # results with a clear warning; don't crash the analysis.
+        print(f"  WARNING: OSM cache read failed: {e}")
+        result = _empty_osm_features()
+        result['_warnings'] = [{
+            'severity': 'warning',
+            'source': 'osm',
+            'message': ('OSM trail/road data unavailable — reading the weekly OSM '
+                        'snapshot failed. Analysis proceeded using land cover '
+                        'only; trail corridors will not appear in results.'),
+        }]
+        return result
 
-    # --- Sub-step B: Classify ways into trails, roads, waterways, and power lines ---
-    # OSM's "highway" tag covers everything from interstate highways to
-    # hiking paths. We split them into trails (foot-traffic features that
-    # SAR subjects are likely to follow) and roads (vehicular features).
-    # Power lines tagged as power=line (high-voltage transmission on towers)
-    # or power=minor_line (distribution on poles) represent cleared corridors.
-    trails, roads, waterways, powerlines = [], [], [], []
-    for el in data.get('elements', []):
-        if el['type'] != 'way':
-            continue
-        coords = [nodes[nid] for nid in el.get('nodes', []) if nid in nodes]
-        if len(coords) < 2:
-            continue
-        tags = el.get('tags', {})
-        line = LineString(coords)
-        hw = tags.get('highway', '')
-        ww = tags.get('waterway', '')
-        pw = tags.get('power', '')
-        if hw in ('path','footway','track','bridleway','cycleway'):
-            trails.append({'geometry': line, 'type': 'trail', 'name': tags.get('name','')})
-        elif hw:
-            roads.append({'geometry': line, 'type': 'road', 'name': tags.get('name','')})
-        elif ww:
-            waterways.append({'geometry': line, 'type': ww, 'name': tags.get('name',''), 'width': tags.get('width','')})
-        elif pw in ('line', 'minor_line'):
-            powerlines.append({'geometry': line, 'type': pw, 'name': tags.get('name','')})
-    print(f"  OSM: {len(trails)} trails, {len(roads)} roads, {len(waterways)} waterways, {len(powerlines)} power lines")
-    return {
-        'trails': gpd.GeoDataFrame(trails, crs='EPSG:4326') if trails else gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-        'roads': gpd.GeoDataFrame(roads, crs='EPSG:4326') if roads else gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-        'waterways': gpd.GeoDataFrame(waterways, crs='EPSG:4326') if waterways else gpd.GeoDataFrame(columns=['geometry','type','name','width'], crs='EPSG:4326'),
-        'powerlines': gpd.GeoDataFrame(powerlines, crs='EPSG:4326') if powerlines else gpd.GeoDataFrame(columns=['geometry','type','name'], crs='EPSG:4326'),
-    }
+    age = osm_cache.cache_age_days()
+    meta = osm_cache.read_cache_metadata()
+    built_at = meta.get('built_at', 'unknown date')
+    # Strip the time portion for a cleaner user-facing date
+    built_date = built_at.split('T')[0] if 'T' in built_at else built_at
+    age_str = f"{age:.1f} days old" if age is not None else "age unknown"
+    print(f"  Snapshot built {built_date} ({age_str})")
+
+    cached['_warnings'] = []
+    if age is None or age > OSM_CACHE_STALE_DAYS:
+        # A fresh snapshot needs no note. A stale one means the weekly
+        # rebuild has been failing and trails added or rerouted since the
+        # build date are missing — worth telling the coordinator.
+        cached['_warnings'].append({
+            'severity': 'warning',
+            'source': 'osm',
+            'message': (f'OSM trail/road data may be out of date — the weekly OSM '
+                        f'snapshot was built {built_date} ({age_str}) and has not '
+                        f'been refreshed. Trails mapped since then are missing.'),
+        })
+    return cached
 
 
 # ===============================================================================

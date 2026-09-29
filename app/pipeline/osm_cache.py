@@ -1,16 +1,17 @@
 # ===============================================================================
 # Module:       pipeline/osm_cache.py
-# Purpose:      Local OSM cache fallback for when all public Overpass endpoints
-#               fail during an analysis. Reads pre-built state-level extracts
-#               from a GeoPackage file that is refreshed weekly by a cron job
-#               (see tools/build_osm_cache.py).
+# Purpose:      Local OSM snapshot: the pipeline's only source of trail, road,
+#               waterway and power line features. Reads pre-built state-level
+#               extracts from a GeoPackage file that is refreshed weekly by a
+#               cron job (see tools/build_osm_cache.py).
 #
-#               The cache mirrors the feature categories downloaded by
-#               download_osm_features(): trails, roads, waterways, powerlines.
-#               It is used ONLY as a last resort when live Overpass is
-#               unreachable — up-to-the-minute OSM data is always preferred.
+#               The layers match the dict returned by download_osm_features():
+#               trails, roads, waterways, powerlines. From v1.11 to v1.15 this
+#               was a failure-only fallback behind the live Overpass API; the
+#               live path was retired in v1.16 because its retry chain had
+#               become the largest time cost in the pipeline.
 # Author:       Jamie F. Weleber
-# Created:      April 2026 (v1.11 cache fallback)
+# Created:      April 2026 (v1.11 cache fallback); sole source since v1.16
 # ===============================================================================
 
 import os                       # File existence checks, path joins
@@ -24,16 +25,16 @@ from datetime import datetime, timezone  # Cache age computation
 # STEP 1: Cache location constants
 # ===============================================================================
 
-# The cache lives alongside the deployed application so it's included in
-# standard Linode backups and is visible in the same filesystem tree as the
-# rest of the tool. Using an absolute path (not WORK_DIR) because the cache
-# MUST persist across pipeline runs — WORK_DIR is wiped per-analysis.
+# The cache lives next to (not inside) the deployed app directory so the
+# rsync deploy cannot touch it. Using an absolute path (not WORK_DIR)
+# because the cache MUST persist across pipeline runs. It is regenerable
+# from Geofabrik and deliberately not backed up.
 CACHE_DIR = '/var/www/sar.weleber.net/cache/osm'
 CACHE_GPKG = os.path.join(CACHE_DIR, 'osm_cache.gpkg')
 CACHE_METADATA = os.path.join(CACHE_DIR, 'osm_cache_metadata.json')
 
 # Layer names inside the GeoPackage. These intentionally match the dict keys
-# returned by download_osm_features() so the cache can be a drop-in fallback.
+# returned by download_osm_features().
 CACHE_LAYERS = ('trails', 'roads', 'waterways', 'powerlines')
 
 
@@ -44,8 +45,8 @@ CACHE_LAYERS = ('trails', 'roads', 'waterways', 'powerlines')
 def cache_is_available():
     """Check whether a usable cache exists on disk.
 
-    This is a lightweight check used by the downloads module to decide
-    whether fallback is possible before attempting a read. It verifies
+    This is a lightweight check used by the downloads module before
+    attempting a read. It verifies
     both the GeoPackage and its metadata sidecar exist — missing metadata
     would prevent us from reporting cache age to the user.
 
@@ -79,9 +80,10 @@ def read_cache_metadata():
 def cache_age_days():
     """Return how many days old the current cache is.
 
-    Used to decide whether to append a staleness note to the user-facing
-    warning. Returns None if metadata is missing or unparseable — callers
-    should treat None as "unknown age" rather than "fresh."
+    Used by the downloads module to decide whether to warn the coordinator
+    that the weekly rebuild has stopped running. Returns None if metadata
+    is missing or unparseable — callers should treat None as "unknown age"
+    rather than "fresh."
 
     Returns:
         float or None: Age in days, or None if metadata unavailable.
@@ -157,10 +159,9 @@ def cache_covers_bbox(bbox):
 def load_osm_from_cache(bbox):
     """Load OSM features from the local cache for the given bounding box.
 
-    This is the fallback path called by download_osm_features() when every
-    public Overpass endpoint has failed. It returns the SAME shape of dict
-    as the live path (keys: trails, roads, waterways, powerlines) so no
-    other code needs to branch on cache-vs-live.
+    Called by download_osm_features() on every analysis. Returns a dict
+    keyed trails, roads, waterways, powerlines — the shape the retired
+    live Overpass path produced, so nothing downstream had to change.
 
     Each GeoPackage layer has an RTree spatial index built during cache
     construction, so the bbox clip is near-instant even though the source
@@ -173,10 +174,9 @@ def load_osm_from_cache(bbox):
 
     Returns:
         Dict with 'trails', 'roads', 'waterways', 'powerlines' keys. Each
-        value is a GeoDataFrame matching the schema of the live download
-        path. Returns empty GeoDataFrames for any layer that fails to read
-        — this matches the degradation behavior of the live path when
-        individual feature classes are missing.
+        value is a GeoDataFrame. Returns empty GeoDataFrames for any layer
+        that fails to read, so a single bad layer degrades the analysis
+        rather than aborting it.
 
     Raises:
         FileNotFoundError: If the cache GeoPackage doesn't exist. Callers
@@ -213,8 +213,8 @@ def load_osm_from_cache(bbox):
             # A corrupt or missing layer shouldn't break the whole fallback.
             # Log loudly so the issue is visible in journald, but leave the
             # empty GeoDataFrame in place so the analysis still runs (it
-            # will just lack that feature class — same degradation as when
-            # a live OSM query returns zero features for that class).
+            # will just lack that feature class — indistinguishable from
+            # OSM having no features of that class in the area).
             print(f"  WARNING: Cache layer '{layer_name}' read failed: {e}")
 
     trail_count = len(result['trails'])

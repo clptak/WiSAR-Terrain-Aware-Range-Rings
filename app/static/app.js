@@ -5,6 +5,16 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
         const segmentColors=['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7','#ec4899','#06b6d4','#84cc16'];
         const map=L.map('map',{zoomControl:false}).setView([39.5,-98.5],5);
         L.control.zoom({position:'topright'}).addTo(map);
+        /* Server-rendered rasters (terrain attractor heatmap, terrain
+           difficulty) live in their own pane between the basemap tiles
+           (z 200) and Leaflet's default overlayPane (z 400) where the
+           contour vectors are drawn. Pane z-order, not add order, then
+           decides stacking, so a raster toggled on after the contours are
+           drawn still lands underneath them. Before v1.16 the TARR contours
+           were drawn inside the heatmap image's load event to force this
+           ordering, which broke once the heatmap stopped loading by default. */
+        map.createPane('rasterPane');
+        map.getPane('rasterPane').style.zIndex=350;
         segmentLayer.addTo(map);contourLayer.addTo(map);
         var basemaps={
             topo:L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'OpenTopoMap'}),
@@ -279,7 +289,7 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
         var ippPlaceMode=false;map.on('click',function(e){if(measureMode){addMeasurePoint(e.latlng);return;}if(!currentMode||!ippPlaceMode)return;placeIPP(e.latlng.lat,e.latlng.lng,'Map click');setIppStatus('success','IPP placed at '+e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4));ippPlaceMode=false;document.getElementById('map').style.cursor='';document.getElementById('dropPinHint').textContent='IPP placed. Click the map again to move it, or proceed below.';document.getElementById('ippDropBtn').style.borderColor='var(--success)';document.getElementById('ippDropBtn').style.background='rgba(34,197,94,0.1)';});
         function runAnalysis(){var p25=parseFloat(document.getElementById('pct25').value)||0,p50=parseFloat(document.getElementById('pct50').value)||0,p75=parseFloat(document.getElementById('pct75').value)||0;if(p25<=0||p50<=0||p75<=0||p25>=p50||p50>=p75){setAnalysisStatus('error','Select a subject profile to set percentiles.');return;}var profileName=document.getElementById('lpbCategory').value||'';var cal=profileName?(CALIBRATION_MULTIPLIERS[profileName]||CALIBRATION_DEFAULT):CALIBRATION_DEFAULT;var cal_p25=p25*cal.m25;var cal_p50=p50*cal.m50;var cal_p75=p75*cal.m75;var ipp=ippMarker.getLatLng();var params={ipp:{lat:ipp.lat,lng:ipp.lng}};if(profileName){params.profile=profileName;}params.percentiles={p25:cal_p25,p50:cal_p50,p75:cal_p75};document.getElementById('runBtn').disabled=true;
             if(window.onAnalysisStart)window.onAnalysisStart();
-            var msgs=['Calculating bounding box...','Downloading elevation data (USGS 3DEP)...','Downloading land cover data (NLCD)...','Downloading trails, roads, power lines, and waterways (OSM)...','Building friction surface from land cover...','Burning in trails, roads, and power line corridors...','Running anisotropic cost-distance from IPP (this is the slow step)...','Generating probability surface...'];
+            var msgs=['Calculating bounding box...','Downloading elevation data (USGS 3DEP)...','Downloading land cover data (NLCD)...','Loading trails, roads, power lines, and waterways from the weekly OSM snapshot...','Building friction surface from land cover...','Burning in trails, roads, and power line corridors...','Running anisotropic cost-distance from IPP (this is the slow step)...','Generating probability surface...'];
             var msgIdx=0;
             setAnalysisStatus('info',msgs[0]);
             var progressTimer=setInterval(function(){msgIdx++;if(msgIdx<msgs.length){setAnalysisStatus('info',msgs[msgIdx]);}else{setAnalysisStatus('info','Still processing... almost there.');}},8000);fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(params)}).then(function(r){return r.json();}).then(function(data){if(data.status!=='ok')throw new Error(data.message);setAnalysisStatus('success','Analysis complete. Use layer toggles to explore.');renderDataWarnings('analysisDataWarnings',data.warnings||[]);
@@ -339,18 +349,19 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
                 if(window.pctOverlay){map.removeLayer(window.pctOverlay);}
                 contourLayer.clearLayers();
                 var aid=data.analysis_id;
-                window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6});
+                window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6,pane:'rasterPane'});
                 window.pctOverlay=null;
                 if(window.terrainOverlay){map.removeLayer(window.terrainOverlay);}
-                window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6});
+                window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6,pane:'rasterPane'});
 
-                // Once the cost-surface PNG has loaded, draw the percentile
-                // contour outlines and their labels on top. Each contour is
-                // drawn twice: a dark "halo" underneath, then the colored line
-                // on top. The halo gives the colored line a contrast boundary
-                // so it reads clearly against the busy Jacobs heatmap
-                // background regardless of what color is underneath.
-                window.costOverlay.on('load',function(){
+                // Draw the percentile contour outlines and their labels.
+                // Each contour is drawn twice: a dark "halo" underneath, then
+                // the colored line on top. The halo gives the colored line a
+                // contrast boundary so it reads clearly against the basemap
+                // or, when toggled on, the busy Jacobs heatmap. The heatmap
+                // itself is not added here: it is off by default (v1.16)
+                // and the Terrain Attractor Priority toggle adds it on demand.
+                (function(){
                     if(data.has_percentiles&&data.contour_geojson){
                         contourLayer.clearLayers();
                         data.contour_geojson.features.forEach(function(f){
@@ -381,13 +392,12 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
                             contourLayer.addLayer(L.marker([labelLat,labelLng],{icon:labelIcon,interactive:false}));
                         });
                     }
-                });
-                window.costOverlay.addTo(map);
+                })();
                 map.fitBounds(bounds);
 
-                // Layer toggles
+                // Layer toggles — heatmap off by default, contours on
                 document.getElementById('layerToggles').classList.remove('hidden');
-                document.getElementById('costToggle').checked=true;
+                document.getElementById('costToggle').checked=false;
                 document.getElementById('costToggle').parentElement.style.opacity='1';
                 document.getElementById('pctToggle').checked=data.has_percentiles;
                 if(!data.has_percentiles){
@@ -533,7 +543,7 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
                 'Calculating bounding box...',
                 'Downloading elevation data (USGS 3DEP)...',
                 'Downloading land cover data (NLCD)...',
-                'Downloading trails, roads, power lines, and waterways (OSM)...',
+                'Loading trails, roads, power lines, and waterways from the weekly OSM snapshot...',
                 'Building friction surface from land cover...',
                 'Burning in trails, roads, and power line corridors...',
                 'Running anisotropic cost-distance from IPP (this is the slow step)...',
@@ -600,23 +610,23 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
 
                 var aid=data.analysis_id;
 
-                /* Render the Jacobs Pure heatmap UNDER the isochrone polygons.
-                   The heatmap conveys terrain-attractor priority (Jacobs 2015),
-                   so even within a single isochrone band the coordinator can see
-                   where trails, stream-trail intersections, and low pockets sit.
-                   The heatmap is added to the map BEFORE the contour layer below
-                   so that Leaflet's default z-order keeps the contour outlines
-                   and labels on top, fully visible against the underlay. */
-                window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6});
-                window.costOverlay.addTo(map);
-                window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6});
+                /* Prepare the Jacobs Pure heatmap but do not add it: it is
+                   off by default (v1.16) and the Terrain Attractor Priority
+                   toggle adds it on demand. When shown it conveys terrain-
+                   attractor priority (Jacobs 2015), so even within a single
+                   isochrone band the coordinator can see where trails,
+                   stream-trail intersections, and low pockets sit. The
+                   rasterPane keeps it under the contour outlines and labels
+                   whenever it is toggled on. */
+                window.costOverlay=L.imageOverlay('/api/results/'+aid+'/cost_surface.png?t='+Date.now(),bounds,{opacity:0.6,pane:'rasterPane'});
+                window.terrainOverlay=L.imageOverlay('/api/results/'+aid+'/terrain.png?t='+Date.now(),bounds,{opacity:0.6,pane:'rasterPane'});
 
                 if(data.contour_geojson){
                 contourLayer.clearLayers();
                 var feats=data.contour_geojson.features; // sorted small → large
 
                 /* Render each contour with a dark halo underneath so it reads
-                   clearly against the Jacobs heatmap. Draw in reverse order
+                   clearly against the basemap or the Jacobs heatmap. Draw in reverse order
                    (largest first, smallest last) so the innermost contour's
                    colored line ends up topmost. For each contour we add the
                    halo then the colored line as a pair, preserving z-order:
@@ -674,10 +684,9 @@ var LPB_DATA={"Abduction": [{"eco": null, "terrain": null, "distances": [0.32, 2
 
                 map.fitBounds(bounds);
 
-                // Layer toggles — heatmap now renders under isochrones as default,
-                // so the cost-surface toggle is on and enabled in this mode too.
+                // Layer toggles — heatmap off by default, isochrones on
                 document.getElementById('layerToggles').classList.remove('hidden');
-                document.getElementById('costToggle').checked=true;
+                document.getElementById('costToggle').checked=false;
                 document.getElementById('costToggle').parentElement.style.opacity='1';
                 document.getElementById('pctToggle').checked=true;
                 document.getElementById('pctToggle').disabled=false;
