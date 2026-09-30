@@ -439,16 +439,16 @@
                     <span class="option-icon">&#127919;</span>
                     <div class="option-title">TARR Analysis</div>
                     <div class="option-desc">Generate Terrain-Aware Range Rings from an IPP using a Lost Person Behavior subject profile. Exports to CalTopo, KML, and GeoJSON.</div>
-                    <a href="#" onclick="event.stopPropagation();document.getElementById('ringInfoModal').classList.remove('hidden');return false;" style="display:inline-block;margin-top:10px;font-size:12px;color:var(--accent);text-decoration:underline;">What&rsquo;s a TARR?</a>
+                    <a href="#" onclick="event.stopPropagation();document.getElementById('ringInfoModal').classList.remove('hidden');return false;" style="display:inline-block;margin-top:10px;font-size:13px;color:var(--accent);text-decoration:underline;">What&rsquo;s a TARR?</a>
                 </div>
                 <div class="modal-option" onclick="selectMode('isochrone')">
                     <span class="option-icon">&#128339;</span>
                     <div class="option-title">Travel Time</div>
                     <div class="option-desc">Model where a subject could reach over time at a given travel speed. No LPB profile needed. Exports to CalTopo, KML, and GeoJSON.</div>
-                    <a href="#" onclick="event.stopPropagation();document.getElementById('travelTimeInfoModal').classList.remove('hidden');return false;" style="display:inline-block;margin-top:10px;font-size:12px;color:#00bcd4;text-decoration:underline;">What&rsquo;s Travel Time?</a>
+                    <a href="#" onclick="event.stopPropagation();document.getElementById('travelTimeInfoModal').classList.remove('hidden');return false;" style="display:inline-block;margin-top:10px;font-size:13px;color:#00bcd4;text-decoration:underline;">What&rsquo;s Travel Time?</a>
                 </div>
             </div>
-            <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);"><b><u>Note</u></b>: This tool generates spatial probability estimates based on terrain, land cover, and modeled travel behavior from the IPP. These outputs are intended as one input among many in the search planning process and do not replace the judgment of search planners, investigators, or incident command staff.</p>
+            <p style="font-size:15px;color:var(--text-secondary);line-height:1.6;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);"><b><u>Note</u></b>: This tool generates spatial probability estimates based on terrain, land cover, and modeled travel behavior from the IPP. These outputs are intended as one input among many in the search planning process and do not replace the judgment of search planners, investigators, or incident command staff.</p>
         </div>
     </div>
     <!-- ============================================================
@@ -459,10 +459,10 @@
 	<div class="modal-overlay hidden" id="changelogModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
         <div class="modal" style="max-width:650px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
-            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
+            <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.17 &#8212; September 30, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Land cover and hydrography from local snapshots:</span> The MRLC land cover WMS and the USGS hydro MapServer had become the pipeline's bottleneck &mdash; up to 120&nbsp;s and 180&nbsp;s of timeouts per analysis since August &mdash; and a timed-out layer was silently dropped from the friction surface. Both are now read from snapshots on the server: Annual NLCD 2024 for CONUS (refreshed yearly) and USGS NHDPlus High Resolution for every basin in the country (refreshed quarterly). USGS 3DEP elevation is the only live request left. Typical analysis time drops from minutes to well under a minute.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Higher-resolution streams:</span> Flowlines were previously drawn from the 1:100k NHDPlus V2 network; the snapshot is 1:24k NHDPlus HR throughout, so headwater washes now appear and named creeks carry a higher Strahler order than before (Sycamore Creek 6, Oak Creek 5, West Fork Oak Creek 4). Stream-order buffers and impedances are unchanged. The Jacobs stream-mask cutoff moves from Strahler &ge;3 to &ge;4 to compensate: measured on the Oak Creek bbox that reproduces the field-reviewed v1.15 stream and intersection masks within 3&ndash;10%, whereas keeping 3 grew them 77% and 51% from unnamed side drainages.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Validation re-measured:</span> After the calibration correction, all 362 Phase 2 subjects were re-run through the current pipeline against the new snapshot data sources. Per-profile per-band containment is 27.9% / 50.8% / 78.7% at the 25th / 50th / 75th percentile (April 2026: 26.2% / 50.0% / 77.1%), so the multipliers are unchanged. The Validation and Metadata panels now show the re-measured figures.</p>
@@ -473,14 +473,14 @@
     		</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.16 &#8212; September 29, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Live Overpass retired:</span> Trails, roads, waterways, and power lines now come exclusively from the weekly OpenStreetMap snapshot (Geofabrik extracts for all 50 states and DC, rebuilt every Sunday). The public Overpass mirrors had become the single largest time cost in an analysis &mdash; three 20-second timeouts before the cache was even consulted &mdash; and data up to a week old is operationally equivalent for trail and road networks. The &ldquo;live servers unavailable&rdquo; notice no longer appears; a warning is shown instead if the snapshot is more than 14 days old, which means the weekly rebuild has stopped running.</p>
         			<p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Terrain Attractor Priority off by default:</span> The Jacobs (2015) heatmap is no longer drawn automatically in either mode. TARR contours and travel-time isochrones render directly over the basemap; enable the heatmap from the Map Layers toggles when wanted. Raster overlays now sit in their own map pane beneath the contour lines, so toggling a raster on never dims the contours or their labels.</p>
     			</div>
     		</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.15 &#8212; May 14, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Jacobs Pure heatmap as default:</span> The default heatmap underneath the TARR contours is now driven by Matt Jacobs's (2015) terrain-attractor framework. Each pixel is colored by the strongest applicable empirical attractor signal &mdash; stream-trail intersections, trails/roads/power-line ROWs, low-elevation pockets, streams, and high-elevation prominence &mdash; independent of cost-distance position from the IPP. The TARR contours still mark the p25/p50/p75 cost-distance envelope on top, so coordinators see both the cost-distance reach and the within-envelope priority. Replaces the prior percentile-band heatmap.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Full-raster heatmap:</span> The heatmap now renders at full opacity across the entire cost-distance raster &mdash; no alpha fade past p75 and no attractor clipping past p75. Jacobs found that linear-feature PDEN increases with IPP-find distance, and roughly 1 in 4 finds occur outside the 75th percentile; keeping attractor signal visible to the bbox edge honors both.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Travel Time mode gets a heatmap:</span> The Jacobs Pure heatmap now renders underneath the time-isochrone polygons. Previously Travel Time mode displayed only the contour outlines with no terrain context inside them. Coordinators can now see, for example, that trails and stream-trail intersections within the 4-hour reach are warmer than open hillside at the same distance.</p>
@@ -493,7 +493,7 @@
 			</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.14 &#8212; May 4, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Mobile layout:</span> Below 768 CSS pixels (phones, narrow tablets), the sidebar converts to a bottom-sheet panel with two snap states. Collapsed state shows a drag handle plus a status strip with the current workflow step (e.g., &ldquo;Subject Profile &mdash; in progress&rdquo;). Peek state reveals the full panel at 50% viewport height with internal scrolling. The map fills the remaining viewport. Drag the handle or tap to switch between states. Desktop layout (&ge; 768 CSS pixels) is unchanged.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Status strip:</span> The collapsed-state strip auto-populates from accordion state via a MutationObserver, so it stays in sync with the existing workflow logic without changes to app.js. Priority order: active step, then first incomplete step, then last completed step.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Form-element contrast:</span> Interactive form fields (subject profile dropdown, eco-region/terrain pills, percentile inputs, CalTopo Map ID inputs, IPP coordinate buttons, travel time speed presets, segment list rows) now use a lighter background (#444a55 vs #252830) so they stand out from the panel and read clearly in outdoor lighting on mobile screens. Passive elements (modal info panels, table striping, disabled buttons) keep the original color so the visual hierarchy still works.</p>
@@ -502,7 +502,7 @@
 			</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.13 &#8212; April 21, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">OSM local cache fallback:</span> When all public Overpass API endpoints fail, the pipeline now falls through to a locally-maintained OSM cache covering Arizona, California, Utah, Nevada, and New Mexico. Cached data is built weekly from Geofabrik state extracts (~8.3 million trail, road, waterway, and power line features in a spatially-indexed GeoPackage). This guarantees that trail and corridor data are always available for in-state searches, even during widespread Overpass outages.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Data-source warnings:</span> A new status panel in the Analysis Results section surfaces data-source notices to the coordinator &mdash; e.g., &ldquo;OSM live servers unavailable &mdash; using cached data from 2026-04-21 (0.0 days old).&rdquo; Severity is differentiated: &ldquo;info&rdquo; for successful fallbacks where output is operationally equivalent, &ldquo;warning&rdquo; for degraded results (cache missing, outside coverage, or read error).</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Runtime optimization:</span> Typical analysis runtime reduced from ~4 minutes to ~20 seconds. The Overpass per-attempt timeout was lowered from 90s to 20s, a persistent HTTP 406 from overpass-api.de was resolved by adding a proper User-Agent header on all outbound requests, and a non-responsive endpoint (maps.mail.ru) was removed from the rotation. Worst-case OSM phase (all live endpoints failed) reduced from 183s to ~42s with automatic cache fallback.</p>
@@ -516,7 +516,7 @@
 			</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.12 &#8212; April 15, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Travel Time mode:</span> New third analysis mode alongside IPP Only and CalTopo Import. Generates time-based reachability contours showing where a subject could physically be after a specified number of hours at a given flat-ground travel speed. The coordinator supplies a speed (mph or km/h, with presets for impaired/slow/moderate/fit hiker) and selects time intervals (1h, 2h, 4h, 8h, 12h, 24h). No Lost Person Behavior profile is required &mdash; this mode models physical capability rather than statistical find-distance likelihood.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Shared pipeline:</span> Travel Time mode reuses the same anisotropic cost-distance pipeline (Tobler slope function, NLCD friction, OSM trail/road/power line networks, NHD hydrology) as TARR modes. The cost-distance output is converted from terrain-equivalent meters to hours using the coordinator&rsquo;s base speed, then contoured at the requested time intervals.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Auto-scaling radius:</span> The analysis bounding box automatically scales to the estimated maximum reach (speed &times; max hours &times; 1.5 + 1 km buffer), ensuring isochrone contours are never clipped by the analysis extent.</p>
@@ -527,7 +527,7 @@
 			</div>
             <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.11 &#8212; April 14, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Per-band calibration:</span> Calibration multipliers are now applied independently to each percentile threshold (M25, M50, M75) rather than a single multiplier across all three. This corrects the nonlinear contraction where outer contours were systematically more compressed than inner ones. For example, Hiker calibration changes from a uniform &times;1.15 to &times;1.00 / &times;1.10 / &times;1.40 at the 25th, 50th, and 75th percentiles respectively. Global default changes from &times;1.40 to &times;1.05 / &times;1.35 / &times;1.80.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Validated against historical data:</span> Per-band calibration tested across all 360 subjects from 253 Coconino County missions, achieving containment rates of 27.9% / 52.5% / 76.8% at the 25th / 50th / 75th percentile thresholds (nominal targets: 25% / 50% / 75%).</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">UI improvements:</span> Subject Profile section now appears before Search Radius in the sidebar. Search Radius renamed to &ldquo;Search Radius (Optional)&rdquo; and starts collapsed. CalTopo band stays open until segments are loaded. IPP placement advances to Subject Profile instead of Search Radius.</p>
@@ -535,7 +535,7 @@
 			</div>
     		<div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.10 &#8212; April 10, 2026</h3>
-    			<div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">GeoJSON contour export:</span> TARR percentile contours can now be downloaded as GeoJSON, complementing the existing KML export. GeoJSON is the native format for TAK/CloudTAK and other modern GIS platforms. Available in both IPP Only and CalTopo Import modes after analysis completes.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Overpass API fallback:</span> OSM trail, road, and power line downloads now try multiple Overpass API mirrors in sequence. If the primary endpoint (overpass-api.de) times out, the tool automatically falls through to alternative mirrors before failing, improving reliability during active incidents.</p>
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Calibration-aware radius:</span> The automatic radius adjustment in IPP Only mode now accounts for the Coconino calibration multiplier when checking whether the search radius is large enough to contain the 75th percentile TARR. Previously, high-multiplier profiles could clip the p75 contour.</p>
@@ -544,14 +544,14 @@
 			</div>
 			<div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.09 &#8212; April 10, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Accordion sidebar:</span> Sidebar reorganized into collapsible sections with alternating background bands. Sections auto-collapse as the workflow progresses (e.g., segments collapse after loading, IPP collapses after placement). Each collapsed section shows a one-line summary of its state. POA results and segment lists now scroll internally, preventing any single section from consuming the entire panel height.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">1080p viewport fix:</span> Panel vertical space is now managed per-section rather than as a single scrolling div, resolving the issue where POA rankings would compress all other controls to ~2mm on 1080p displays.</p>
                 </div>
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.08 &#8212; April 9, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">CalTopo TARR export:</span> TARR percentile contours can now be pushed directly to a CalTopo map as Shape objects via the CalTopo API. Styled polygons appear on the map with matching colors and descriptions. Available in both IPP Only and CalTopo Import modes after analysis completes.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">CalTopo segment ranking update:</span> In CalTopo Import mode, POA rankings can be written back to existing CalTopo Assignment descriptions, giving planners immediate visibility into segment priority without leaving CalTopo.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">JavaScript separation:</span> Frontend JavaScript extracted from index.html into a standalone app.js file for maintainability and more reliable deployments.</p>
@@ -560,14 +560,14 @@
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.07 &#8212; April 8, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Percentile-band color ramp:</span> The probability surface now uses percentile-band normalization instead of log-normal PDF normalization. Each TARR band (0&ndash;p25, p25&ndash;p50, p50&ndash;p75) receives an equal share of the color ramp, ensuring meaningful visual differentiation across the full search area. Priority decreases monotonically from the IPP outward with no cold spot at the origin. Red/orange = inside 25th percentile, yellow/green = 25th&ndash;50th, teal/blue = 50th&ndash;75th.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Travel corridor highlighting:</span> Roads, trails, and power line rights-of-way are now visually highlighted on the probability surface as brighter corridors. Cells with friction 1.0 (cleared travel corridors from OSM) are blended toward white, making easy-travel routes immediately visible within each priority band, including corridors which may not be shown on the basemap.</p>
                 </div>
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.06 &#8212; April 3, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Coconino calibration multipliers:</span> Per-profile calibration multipliers derived from Phase 2 validation (360 subjects, 253 Coconino County missions). Koester (2008) percentile distances are scaled by a profile-specific multiplier before cost-distance analysis, compensating for systematic TARR contraction in rugged terrain. Seven profiles calibrated individually (n&ge;20); remaining profiles use a global default multiplier of 1.40. Active multiplier displayed in the subject profile panel.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">CalTopo buffer removed:</span> The manual buffer distance input for CalTopo import mode has been removed. The analysis extent is now computed automatically as the union of (a) segment bounding box + 1 km and (b) IPP + calibrated 75th percentile + 1 km, ensuring full TARR coverage regardless of segment placement.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Bounding box union logic:</span> In CalTopo mode, the data download extent now covers both the full TARR reach from the IPP and all search segments, preventing cost-distance clipping at raster boundaries.</p>
@@ -575,21 +575,21 @@
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.05 &#8212; March 30, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Power line corridors:</span> High-voltage transmission lines and distribution lines from OpenStreetMap are now downloaded and burned into the cost surface as travel aids. Cleared rights-of-way beneath power lines are buffered at ~40m and assigned friction 1.00 (same as trails/roads), reflecting both the physical passability of maintained corridors and their psychological attractiveness as human-made linear features. Follows IGT4SAR (Ferguson 2012) precedent for modeling power line ROWs.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Pipeline refactor:</span> Backend pipeline reorganized into modular subpackage (downloads, cost_surface, cost_distance, outputs, shared) for maintainability and educational commenting.</p>
                 </div>
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.04 &#8212; March 29, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Friction recalibration:</span> Land cover friction multipliers recalibrated to off-trail speed literature (Imhof 1950). Evergreen forest friction increased from 1.25 to 1.80, with proportional adjustments across all vegetation classes. Trail corridors now exert significantly stronger influence on cost-distance contours, particularly where trails traverse steep or densely forested terrain.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Contour fill removed:</span> TARR percentile contours now render as outlines only (zero fill). The probability density surface provides sufficient visual information without contour fill overlap.</p>
                 </div>
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.03 &#8212; March 27, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Probability density color ramp:</span> The map overlay now displays log-normal probability density from the subject profile rather than raw cost-distance. Color is anchored to the statistical distribution (blue = low density, red = peak find probability), making the visualization independent of search radius. Beyond the 75th percentile, opacity fades to visually de-emphasize the containment zone.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Percentiles required:</span> Subject profile percentiles are now required to run an analysis, ensuring all outputs are behaviorally informed. Select a profile from the 28 LPB categories or enter values manually.</p>
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Map legend:</span> Collapsible legend control on the map explains the probability density color ramp and TARR contour lines.</p>
@@ -597,7 +597,7 @@
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.02 &#8212; March 26, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">POA normalization:</span> Segment POA values now normalized across defined segments to sum to 100%, eliminating sensitivity to buffer/radius size. Rest of World (ROW) probability is excluded as an investigative judgment outside the scope of the travel cost model.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Scope disclaimers:</span> Added tool scope and intended use language to splash modal, POA rankings panel, and metadata modal. The tool is positioned as one data source among many and does not replace human judgment in search planning.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">KML export:</span> Percentile contours (TARRs) downloadable as KML with styled polygons. Compatible with CalTopo, Google Earth, QGIS, Avenza, and other GIS/field applications.</p>
@@ -606,7 +606,7 @@
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.01 &#8212; March 25, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Subject profiles:</span> Added Lost Person Behavior database with 28 subject categories, cascading eco region and terrain selectors. Percentile fields auto-populate from Koester (2008) via Ferguson (2013) IGT4SAR.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">NHD hydrology:</span> Added National Hydrography Dataset integration. Waterbody polygons, river area features, and flowlines with Strahler stream order buffering.</p>
                     <p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">NLCD data source fix:</span> Switched from mrlc_display to mrlc_download endpoint for true NLCD classification codes.</p>
@@ -619,12 +619,12 @@
             </div>
             <div style="margin-bottom:24px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.00 &#8212; March 23, 2026</h3>
-                <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">
+                <div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
                     <p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Initial release.</span> Anisotropic cost-distance with per-edge Tobler, 3D surface distance, cross-slope penalty. NLCD/IGT4SAR friction. OSM trail/road/waterway integration. CalTopo segment import with log-normal POA ranking. IPP-only and CalTopo workflows. Leaflet frontend with travel cost, percentile contour, and terrain difficulty layers. PNG and GeoTIFF downloads.</p>
                 </div>
             </div>
             <div style="text-align:center;">
-                <button onclick="document.getElementById('changelogModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+                <button onclick="document.getElementById('changelogModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Close</button>
             </div>
         </div>
     </div>
@@ -643,33 +643,33 @@
     <div class="modal-overlay hidden" id="metadataModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
         <div class="modal" style="max-width:750px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">WiSAR Decision Support Tool</h2>
-            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">Coconino County Sheriff's Search &amp; Rescue</p>
+            <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">Coconino County Sheriff's Search &amp; Rescue</p>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Description</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">The WiSAR Decision Support Tool is a web-based geospatial application that generates terrain-aware travel cost surfaces and Terrain-Aware Range Rings (TARRs) from an Initial Planning Point (IPP) using anisotropic cost-distance analysis. It supports three analysis modes: IPP-only TARR generation, CalTopo segment import with Probability of Area (POA) ranking, and Travel Time reachability modeling at a user-specified travel speed.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">The WiSAR Decision Support Tool is a web-based geospatial application that generates terrain-aware travel cost surfaces and Terrain-Aware Range Rings (TARRs) from an Initial Planning Point (IPP) using anisotropic cost-distance analysis. It supports three analysis modes: IPP-only TARR generation, CalTopo segment import with Probability of Area (POA) ranking, and Travel Time reachability modeling at a user-specified travel speed.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Purpose</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Developed as a proof-of-concept to bridge the gap between spatial probability modeling and operational SAR workflows. TARRs replace traditional Euclidean range rings with contours shaped by actual terrain conditions, improving search area prioritization during active incidents. Travel Time mode extends the same terrain model to show time-based reachability at a coordinator-specified travel speed, following the mobility model approach of Doherty et al. (2014).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Developed as a proof-of-concept to bridge the gap between spatial probability modeling and operational SAR workflows. TARRs replace traditional Euclidean range rings with contours shaped by actual terrain conditions, improving search area prioritization during active incidents. Travel Time mode extends the same terrain model to show time-based reachability at a coordinator-specified travel speed, following the mobility model approach of Doherty et al. (2014).</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Methodology</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost surface:</strong> Combines NLCD landcover friction (IGT4SAR framework, Doherty et al. 2013, Danser 2018) with OSM trail/road/power line burn-in and waterway impedance. Power line rights-of-way modeled as travel aids (friction 1.00) following Ferguson (2012).</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost-distance:</strong> Anisotropic Dijkstra with per-edge Tobler's Hiking Function (1993). Computes directional slope, 3D surface distance, and cross-slope traversal penalty (up to 30%).</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">Calibration:</strong> Per-band multipliers (M25, M50, M75) derived from 362 subjects across 253 Coconino County missions. Multipliers scale each Koester (2008) Euclidean percentile distance independently to compensate for nonlinear TARR contraction caused by terrain friction accumulation over distance. Seven profiles calibrated individually (n&ge;20); uncalibrated profiles use global defaults of &times;1.05 / &times;1.35 / &times;1.80. Validated containment: 27.9% / 50.8% / 78.7% (targets: 25% / 50% / 75%), re-measured September 30, 2026 on the current snapshot data sources.</p>
-				<p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">TARRs:</strong> Percentile find distances applied as contour thresholds on the cost-distance surface. Contours extracted as vector polygons for crisp rendering and CalTopo export.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">POA ranking:</strong> Log-normal distribution fitted to user percentiles. Continuous probability density evaluated per cell, summed within each CalTopo segment. Values normalized across defined segments to sum to 100%.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">CalTopo export:</strong> TARR contour polygons and POA segment rankings are pushed to CalTopo maps via authenticated API requests (HMAC-SHA256 signed, CCSO-SAR service account). Polygons simplified to &le;100 vertices for URL-parameter delivery.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">GeoJSON export:</strong> TARR contour polygons downloadable as standard GeoJSON FeatureCollection with percentile, threshold, and color properties. Compatible with TAK/CloudTAK, QGIS, ArcGIS, and web mapping applications.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Travel Time mode:</strong> Converts the cost-distance surface from terrain-equivalent meters to hours of travel time using a user-specified flat-ground speed: hours = cost_distance_m / (speed_kmh &times; 1000). This reuses the identical anisotropic cost-distance pipeline &mdash; only the interpretation of the output changes. Contours are extracted at user-selected time intervals (e.g., 1h, 2h, 4h, 8h) and represent the maximum extent a subject could physically reach from the IPP. Conceptually equivalent to the mobility model of Doherty et al. (2014), with the addition of user-configurable base speed and on-demand analysis for any CONUS location.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost surface:</strong> Combines NLCD landcover friction (IGT4SAR framework, Doherty et al. 2013, Danser 2018) with OSM trail/road/power line burn-in and waterway impedance. Power line rights-of-way modeled as travel aids (friction 1.00) following Ferguson (2012).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Cost-distance:</strong> Anisotropic Dijkstra with per-edge Tobler's Hiking Function (1993). Computes directional slope, 3D surface distance, and cross-slope traversal penalty (up to 30%).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">Calibration:</strong> Per-band multipliers (M25, M50, M75) derived from 362 subjects across 253 Coconino County missions. Multipliers scale each Koester (2008) Euclidean percentile distance independently to compensate for nonlinear TARR contraction caused by terrain friction accumulation over distance. Seven profiles calibrated individually (n&ge;20); uncalibrated profiles use global defaults of &times;1.05 / &times;1.35 / &times;1.80. Validated containment: 27.9% / 50.8% / 78.7% (targets: 25% / 50% / 75%), re-measured September 30, 2026 on the current snapshot data sources.</p>
+				<p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">TARRs:</strong> Percentile find distances applied as contour thresholds on the cost-distance surface. Contours extracted as vector polygons for crisp rendering and CalTopo export.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">POA ranking:</strong> Log-normal distribution fitted to user percentiles. Continuous probability density evaluated per cell, summed within each CalTopo segment. Values normalized across defined segments to sum to 100%.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">CalTopo export:</strong> TARR contour polygons and POA segment rankings are pushed to CalTopo maps via authenticated API requests (HMAC-SHA256 signed, CCSO-SAR service account). Polygons simplified to &le;100 vertices for URL-parameter delivery.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">GeoJSON export:</strong> TARR contour polygons downloadable as standard GeoJSON FeatureCollection with percentile, threshold, and color properties. Compatible with TAK/CloudTAK, QGIS, ArcGIS, and web mapping applications.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Travel Time mode:</strong> Converts the cost-distance surface from terrain-equivalent meters to hours of travel time using a user-specified flat-ground speed: hours = cost_distance_m / (speed_kmh &times; 1000). This reuses the identical anisotropic cost-distance pipeline &mdash; only the interpretation of the output changes. Contours are extracted at user-selected time intervals (e.g., 1h, 2h, 4h, 8h) and represent the maximum extent a subject could physically reach from the IPP. Conceptually equivalent to the mobility model of Doherty et al. (2014), with the addition of user-configurable base speed and on-demand analysis for any CONUS location.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Data sources</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:30%;">Elevation</td><td style="padding:5px 0;">USGS 3DEP 1/3 arc-second, resampled to 30m</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Land cover</td><td style="padding:5px 0;">Annual NLCD 2024 (MRLC/USGS), 30m native, local CONUS snapshot</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Hydrology</td><td style="padding:5px 0;">USGS NHDPlus High Resolution (1:24k), local snapshot: waterbodies, area hydro polygons, flowlines with Strahler order</td></tr>
@@ -682,7 +682,7 @@
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Friction multipliers (NLCD)</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">NLCD class</th><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">Description</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">IGT4SAR</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">Friction</th></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">11</td><td style="padding:4px 8px;">Open Water</td><td style="padding:4px 8px;text-align:center;">99</td><td style="padding:4px 8px;text-align:center;">50.00</td></tr>
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">12</td><td style="padding:4px 8px;">Perennial Ice/Snow</td><td style="padding:4px 8px;text-align:center;">85</td><td style="padding:4px 8px;text-align:center;">50.00</td></tr>
@@ -701,12 +701,12 @@
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">90</td><td style="padding:4px 8px;">Woody Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
                     <tr><td style="padding:4px 8px;">95</td><td style="padding:4px 8px;">Emergent Herbaceous Wetlands</td><td style="padding:4px 8px;text-align:center;">80</td><td style="padding:4px 8px;text-align:center;">3.00</td></tr>
                 </table>
-                <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Trails, roads, and power line corridors from OSM assigned friction 1.00 regardless of underlying NLCD class. Power line ROWs buffered ~40m to represent cleared corridor. Friction calibrated to Imhof (1950) off-trail velocity reduction (0.6x on-trail speed).</p>
+                <p style="font-size:13px;color:var(--text-muted);margin-top:6px;">Trails, roads, and power line corridors from OSM assigned friction 1.00 regardless of underlying NLCD class. Power line ROWs buffered ~40m to represent cleared corridor. Friction calibrated to Imhof (1950) off-trail velocity reduction (0.6x on-trail speed).</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Calibration multipliers (Coconino County)</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">Profile</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">n</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M25</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M50</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M75</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p25 obs.</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p50 obs.</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p75 obs.</th></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">Hiker</td><td style="padding:4px 8px;text-align:center;">184</td><td style="padding:4px 8px;text-align:center;">1.00&times;</td><td style="padding:4px 8px;text-align:center;">1.10&times;</td><td style="padding:4px 8px;text-align:center;">1.40&times;</td><td style="padding:4px 8px;text-align:center;">32.6%</td><td style="padding:4px 8px;text-align:center;">52.2%</td><td style="padding:4px 8px;text-align:center;">79.9%</td></tr>
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">Skier (Alpine)</td><td style="padding:4px 8px;text-align:center;">36</td><td style="padding:4px 8px;text-align:center;">1.20&times;</td><td style="padding:4px 8px;text-align:center;">1.90&times;</td><td style="padding:4px 8px;text-align:center;">2.15&times;</td><td style="padding:4px 8px;text-align:center;">25.0%</td><td style="padding:4px 8px;text-align:center;">55.6%</td><td style="padding:4px 8px;text-align:center;">83.3%</td></tr>
@@ -717,12 +717,12 @@
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">Child (10-12)</td><td style="padding:4px 8px;text-align:center;">20</td><td style="padding:4px 8px;text-align:center;">0.65&times;</td><td style="padding:4px 8px;text-align:center;">1.55&times;</td><td style="padding:4px 8px;text-align:center;">1.50&times;</td><td style="padding:4px 8px;text-align:center;">25.0%</td><td style="padding:4px 8px;text-align:center;">50.0%</td><td style="padding:4px 8px;text-align:center;">75.0%</td></tr>
                     <tr style="background:var(--bg-input);"><td style="padding:4px 8px;font-style:italic;">All other profiles</td><td style="padding:4px 8px;text-align:center;">&mdash;</td><td style="padding:4px 8px;text-align:center;">1.05&times;</td><td style="padding:4px 8px;text-align:center;">1.35&times;</td><td style="padding:4px 8px;text-align:center;">1.80&times;</td><td style="padding:4px 8px;text-align:center;" colspan="3">Global default (minimizes total error across all 362 subjects)</td></tr>
                 </table>
-                <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Observed containment rates validated through full pipeline (362 subjects, 253 Coconino County missions). Nominal targets: 25%/50%/75%. Profiles with n&lt;20 use global defaults. Multipliers applied independently to each Koester (2008) percentile distance before cost-distance thresholding. Aggregate calibrated containment: 27.9% / 50.8% / 78.7% (re-measured September 30, 2026 against the current NLCD, NHDPlus HR and OSM snapshots; the April 2026 measurement was 26.2% / 50.0% / 77.1%).</p>
+                <p style="font-size:13px;color:var(--text-muted);margin-top:6px;">Observed containment rates validated through full pipeline (362 subjects, 253 Coconino County missions). Nominal targets: 25%/50%/75%. Profiles with n&lt;20 use global defaults. Multipliers applied independently to each Koester (2008) percentile distance before cost-distance thresholding. Aggregate calibrated containment: 27.9% / 50.8% / 78.7% (re-measured September 30, 2026 against the current NLCD, NHDPlus HR and OSM snapshots; the April 2026 measurement was 26.2% / 50.0% / 77.1%).</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Map layers</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:35%;">Terrain Attractor Priority</td><td style="padding:5px 0;">Per-pixel priority surface colored by the strongest applicable Jacobs (2015) terrain-attractor signal. Hot (red) = stream-trail intersection. Warm (orange-yellow) = trail / road / power-line ROW proximity. Cool-warm (yellow-green) = low-elevation pocket or stream proximity. Cool (blue) = no attractor signal. Renders at full opacity across the entire cost-distance raster &mdash; no fade past p75 &mdash; honoring Jacobs's finding that linear-feature PDEN increases with distance from the IPP. Default: off (v1.16); enable from the Map Layers toggles.</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Percentile Contours (TARRs)</td><td style="padding:5px 0;">Vector contour polygons at 25th, 50th, 75th percentile thresholds. Default: on (when percentiles provided).</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Travel Time Contours</td><td style="padding:5px 0;">Vector contour polygons at user-selected time intervals (Travel Time mode only). Color-coded outline-only rendering with labels at each contour boundary. Default: on.</td></tr>
@@ -732,7 +732,7 @@
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Technical specifications</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);width:40%;">Resolution</td><td style="padding:5px 0;">30m (matched to NLCD)</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">CRS</td><td style="padding:5px 0;">EPSG:4326 (WGS 84)</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Algorithm</td><td style="padding:5px 0;">Dijkstra's shortest path, 8-connected, anisotropic</td></tr>
@@ -745,14 +745,14 @@
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Known limitations</h3>
-                <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">
                     <p style="margin-bottom:6px;">Friction normalization differs from raw IGT4SAR implementation. Cross-slope traversal is approximated rather than using aspect-relative horizontal factors. Stream impedance uses a simplified binary approach rather than Strahler stream order. Trail data from OpenStreetMap may have incomplete coverage compared to authoritative datasets. NLCD acquired via WMS may have resampling artifacts. Resolution capped at 30m.</p>
                 </div>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Intended use</h3>
-                <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+                <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">
                     <p style="margin-bottom:8px;">This tool models the spatial probability of a lost subject's location based on the physics of human movement over a landscape. It integrates elevation, slope, land cover friction, trail networks, and hydrological features to generate an anisotropic cost-distance surface from the Initial Planning Point (IPP), then fits a statistical distribution to known travel behavior data to estimate relative probability across the search area.</p>
                     <p style="margin-bottom:8px;">These outputs are intended to supplement, not replace, the expertise of search planners and incident commanders. The model does not account for investigative factors such as subject intent, clue interpretation, witness information, or scenarios where the subject may have left the search area by non-pedestrian means. Probability of Area (POA) values are normalized across the defined search segments and do not include a Rest of World (ROW) estimate, which remains a planning judgment outside the scope of this tool.</p>
                     <p>Search planning decisions should integrate these spatial estimates as one component of a comprehensive planning process.</p>
@@ -761,24 +761,24 @@
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">References</h3>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Danser, R.A. (2018). <em>Applying Least Cost Path Analysis to SAR Data.</em> USC Thesis.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Doherty, P.J., Guo, Q., Doke, J., &amp; Ferguson, D. (2014). Applied Geography, 47, 99-110.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Ferguson, D. (2013). IGT4SAR. GitHub.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Koester, R.J. (2008). <em>Lost Person Behavior.</em> dbS Productions.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Sava, E. et al. (2016). Transactions in GIS, 20(1), 38-53.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Sherrill, K.R., Frakes, B., &amp; Schupbach, S. (2010). Travel Time Cost Surface Model: Standard Operating Procedure. NPS NRR-2010/238.</p>
-                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">Tobler, W. (1993). Technical Report 93-1, NCGIA.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Danser, R.A. (2018). <em>Applying Least Cost Path Analysis to SAR Data.</em> USC Thesis.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Doherty, P.J., Guo, Q., Doke, J., &amp; Ferguson, D. (2014). Applied Geography, 47, 99-110.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Ferguson, D. (2013). IGT4SAR. GitHub.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Koester, R.J. (2008). <em>Lost Person Behavior.</em> dbS Productions.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Sava, E. et al. (2016). Transactions in GIS, 20(1), 38-53.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Sherrill, K.R., Frakes, B., &amp; Schupbach, S. (2010). Travel Time Cost Surface Model: Standard Operating Procedure. NPS NRR-2010/238.</p>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">Tobler, W. (1993). Technical Report 93-1, NCGIA.</p>
             </div>
 
             <div style="margin-bottom:16px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Contact</h3>
-                <p style="font-size:12px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
+                <p style="font-size:13px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
             </div>
 
-            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 30, 2026 | Version 1.17</p>
+            <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 30, 2026 | Version 1.17</p>
 
             <div style="text-align:center;">
-                <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+                <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Close</button>
             </div>
         </div>
     </div>
@@ -793,34 +793,34 @@
     <div class="modal-overlay hidden" id="validationModal" onclick="if(event.target===this)this.classList.add('hidden');" style="z-index:10000;">
         <div class="modal" style="max-width:700px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Validation</h2>
-            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">TARR containment analysis &mdash; Coconino County historical data</p>
+            <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">TARR containment analysis &mdash; Coconino County historical data</p>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Dataset</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">362 subjects across 253 missions from the Coconino County Sheriff&rsquo;s Office, spanning 12 Koester (2008) lost person behavior profiles. Multi-subject missions where individuals were found at different locations are treated as independent observations. The original April 2026 uncalibrated analysis excluded two subjects who were found at the IPP itself (within 35 m), where the cost-distance probe reads zero; the September 30, 2026 re-run against the current snapshot data sources tests containment by point-in-polygon and includes all 362. Figures below are from that re-run.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">362 subjects across 253 missions from the Coconino County Sheriff&rsquo;s Office, spanning 12 Koester (2008) lost person behavior profiles. Multi-subject missions where individuals were found at different locations are treated as independent observations. The original April 2026 uncalibrated analysis excluded two subjects who were found at the IPP itself (within 35 m), where the cost-distance probe reads zero; the September 30, 2026 re-run against the current snapshot data sources tests containment by point-in-polygon and includes all 362. Figures below are from that re-run.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">The contraction problem</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Koester&rsquo;s find-distance percentiles were derived from straight-line (Euclidean) measurements between IPP and find locations. When these distances are used as thresholds on a terrain-aware cost-distance surface, the resulting contours systematically underestimate geographic coverage because terrain friction inflates effective travel distance. The contraction worsens at higher percentiles as friction accumulates over longer paths.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">Koester&rsquo;s find-distance percentiles were derived from straight-line (Euclidean) measurements between IPP and find locations. When these distances are used as thresholds on a terrain-aware cost-distance surface, the resulting contours systematically underestimate geographic coverage because terrain friction inflates effective travel distance. The contraction worsens at higher percentiles as friction accumulates over longer paths.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Containment comparison</h3>
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Percentage of find locations falling within each TARR percentile contour, compared to nominal expected rates.</p>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Percentage of find locations falling within each TARR percentile contour, compared to nominal expected rates.</p>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:6px 8px;text-align:left;color:var(--text-primary);">Percentile</th><th style="padding:6px 8px;text-align:center;color:var(--text-primary);">Nominal</th><th style="padding:6px 8px;text-align:center;color:var(--text-primary);">Uncalibrated</th><th style="padding:6px 8px;text-align:center;color:var(--text-primary);">Global per-band</th><th style="padding:6px 8px;text-align:center;color:var(--text-primary);">Per-profile per-band</th></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 8px;font-weight:600;">25th</td><td style="padding:5px 8px;text-align:center;">25.0%</td><td style="padding:5px 8px;text-align:center;color:#ef4444;">28.7%</td><td style="padding:5px 8px;text-align:center;">28.7%</td><td style="padding:5px 8px;text-align:center;color:#22c55e;font-weight:600;">27.9%</td></tr>
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:5px 8px;font-weight:600;">50th</td><td style="padding:5px 8px;text-align:center;">50.0%</td><td style="padding:5px 8px;text-align:center;color:#ef4444;">45.0%</td><td style="padding:5px 8px;text-align:center;">52.2%</td><td style="padding:5px 8px;text-align:center;color:#22c55e;font-weight:600;">50.8%</td></tr>
                     <tr><td style="padding:5px 8px;font-weight:600;">75th</td><td style="padding:5px 8px;text-align:center;">75.0%</td><td style="padding:5px 8px;text-align:center;color:#ef4444;">63.8%</td><td style="padding:5px 8px;text-align:center;">77.6%</td><td style="padding:5px 8px;text-align:center;color:#22c55e;font-weight:600;">78.7%</td></tr>
                 </table>
-                <p style="font-size:12px;color:var(--text-muted);margin-top:6px;"><strong>Uncalibrated:</strong> raw Koester distances applied as cost-distance thresholds. <strong>Global per-band:</strong> M25=1.05, M50=1.35, M75=1.80 applied uniformly to all profiles. <strong>Per-profile per-band:</strong> profile-specific M25/M50/M75 where n&ge;20, global defaults otherwise. The per-profile per-band approach is what the tool uses. All three columns were re-measured on September 30, 2026 with the current pipeline and snapshot data sources; the original April 2026 measurements were 23.9% / 41.1% / 58.9% uncalibrated, 27.9% / 52.5% / 76.8% global per-band and 26.2% / 50.0% / 77.1% per-profile per-band. The uncalibrated column is not directly comparable across the two dates because the April figure came from an earlier pipeline version.</p>
+                <p style="font-size:13px;color:var(--text-muted);margin-top:6px;"><strong>Uncalibrated:</strong> raw Koester distances applied as cost-distance thresholds. <strong>Global per-band:</strong> M25=1.05, M50=1.35, M75=1.80 applied uniformly to all profiles. <strong>Per-profile per-band:</strong> profile-specific M25/M50/M75 where n&ge;20, global defaults otherwise. The per-profile per-band approach is what the tool uses. All three columns were re-measured on September 30, 2026 with the current pipeline and snapshot data sources; the original April 2026 measurements were 23.9% / 41.1% / 58.9% uncalibrated, 27.9% / 52.5% / 76.8% global per-band and 26.2% / 50.0% / 77.1% per-profile per-band. The uncalibrated column is not directly comparable across the two dates because the April figure came from an earlier pipeline version.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Per-profile containment (pipeline-validated)</h3>
-                <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Containment rates observed after running each subject through the full analysis pipeline with per-profile per-band calibration applied. Re-measured September 30, 2026 on the current snapshot data sources.</p>
-                <table style="width:100%;border-collapse:collapse;font-size:12px;color:var(--text-secondary);">
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Containment rates observed after running each subject through the full analysis pipeline with per-profile per-band calibration applied. Re-measured September 30, 2026 on the current snapshot data sources.</p>
+                <table style="width:100%;border-collapse:collapse;font-size:13px;color:var(--text-secondary);">
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><th style="padding:5px 8px;text-align:left;color:var(--text-primary);">Profile</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">n</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">Cal. type</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M25</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M50</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">M75</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p25</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p50</th><th style="padding:5px 8px;text-align:center;color:var(--text-primary);">p75</th></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">Hiker</td><td style="padding:4px 8px;text-align:center;">184</td><td style="padding:4px 8px;text-align:center;">Profile</td><td style="padding:4px 8px;text-align:center;">1.00</td><td style="padding:4px 8px;text-align:center;">1.10</td><td style="padding:4px 8px;text-align:center;">1.40</td><td style="padding:4px 8px;text-align:center;">32.6%</td><td style="padding:4px 8px;text-align:center;">52.2%</td><td style="padding:4px 8px;text-align:center;">79.9%</td></tr>
                     <tr style="border-bottom:1px solid var(--border);background:var(--bg-input);"><td style="padding:4px 8px;">Skier (Alpine)</td><td style="padding:4px 8px;text-align:center;">36</td><td style="padding:4px 8px;text-align:center;">Profile</td><td style="padding:4px 8px;text-align:center;">1.20</td><td style="padding:4px 8px;text-align:center;">1.90</td><td style="padding:4px 8px;text-align:center;">2.15</td><td style="padding:4px 8px;text-align:center;">25.0%</td><td style="padding:4px 8px;text-align:center;">55.6%</td><td style="padding:4px 8px;text-align:center;">83.3%</td></tr>
@@ -835,27 +835,27 @@
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:4px 8px;">Child (4-6)</td><td style="padding:4px 8px;text-align:center;">2</td><td style="padding:4px 8px;text-align:center;color:var(--text-muted);">Default</td><td style="padding:4px 8px;text-align:center;">1.05</td><td style="padding:4px 8px;text-align:center;">1.35</td><td style="padding:4px 8px;text-align:center;">1.80</td><td style="padding:4px 8px;text-align:center;">0.0%</td><td style="padding:4px 8px;text-align:center;">50.0%</td><td style="padding:4px 8px;text-align:center;">100.0%</td></tr>
                     <tr style="background:var(--bg-input);"><td style="padding:4px 8px;">Child (13-15)</td><td style="padding:4px 8px;text-align:center;">2</td><td style="padding:4px 8px;text-align:center;color:var(--text-muted);">Default</td><td style="padding:4px 8px;text-align:center;">1.05</td><td style="padding:4px 8px;text-align:center;">1.35</td><td style="padding:4px 8px;text-align:center;">1.80</td><td style="padding:4px 8px;text-align:center;">0.0%</td><td style="padding:4px 8px;text-align:center;">100.0%</td><td style="padding:4px 8px;text-align:center;">100.0%</td></tr>
                 </table>
-                <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Profiles with n&lt;20 use global default multipliers. Small-sample profiles (Runner, Child 1-3, Child 4-6, Child 13-15) show volatile rates due to sample size. Camper (n=14) consistently under-contains despite calibration, suggesting the Koester distance profile may not match Coconino County terrain patterns for this category.</p>
+                <p style="font-size:13px;color:var(--text-muted);margin-top:6px;">Profiles with n&lt;20 use global default multipliers. Small-sample profiles (Runner, Child 1-3, Child 4-6, Child 13-15) show volatile rates due to sample size. Camper (n=14) consistently under-contains despite calibration, suggesting the Koester distance profile may not match Coconino County terrain patterns for this category.</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Calibration approach</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;">For each profile with n&ge;20 subjects, optimal multipliers were derived independently for each percentile band by finding the scaling factor that brings the observed TARR containment rate closest to the nominal target (25%, 50%, or 75%). This per-band approach corrects the nonlinear contraction where outer contours are more compressed than inner ones.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;">Multipliers are applied on the frontend before percentile distances are sent to the analysis pipeline. The cost surface and cost-distance computation are unaffected &mdash; calibration adjusts only the statistical thresholds, not the terrain model.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;">All containment rates shown above are validated through the full analysis pipeline (IPP &rarr; cost surface &rarr; cost-distance &rarr; TARR contour generation &rarr; point-in-polygon containment test), not spreadsheet approximations. The September 30, 2026 re-measurement ran the deployed pipeline code against full local copies of the production NLCD, NHDPlus HR and OSM snapshots, with elevation from USGS 3DEP as in production, sizing each analysis exactly as the tool does (calibrated p75 + 2 km).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;">For each profile with n&ge;20 subjects, optimal multipliers were derived independently for each percentile band by finding the scaling factor that brings the observed TARR containment rate closest to the nominal target (25%, 50%, or 75%). This per-band approach corrects the nonlinear contraction where outer contours are more compressed than inner ones.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;">Multipliers are applied on the frontend before percentile distances are sent to the analysis pipeline. The cost surface and cost-distance computation are unaffected &mdash; calibration adjusts only the statistical thresholds, not the terrain model.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;">All containment rates shown above are validated through the full analysis pipeline (IPP &rarr; cost surface &rarr; cost-distance &rarr; TARR contour generation &rarr; point-in-polygon containment test), not spreadsheet approximations. The September 30, 2026 re-measurement ran the deployed pipeline code against full local copies of the production NLCD, NHDPlus HR and OSM snapshots, with elevation from USGS 3DEP as in production, sizing each analysis exactly as the tool does (calibrated p75 + 2 km).</p>
             </div>
 
             <div style="margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">Known limitations</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">In-sample calibration:</strong> Multipliers were derived from the same dataset used for validation. Containment rates reflect calibration fit, not out-of-sample predictive accuracy. Cross-validation or data from other jurisdictions would provide a stronger test.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Region-specific:</strong> Calibration is derived from Coconino County terrain (high desert to alpine, 600&ndash;3,850m elevation). Other jurisdictions with different terrain profiles may require their own calibration.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">Small-sample profiles:</strong> Five profiles have fewer than 20 subjects and use global default multipliers. Rates for these profiles should be interpreted with caution.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">In-sample calibration:</strong> Multipliers were derived from the same dataset used for validation. Containment rates reflect calibration fit, not out-of-sample predictive accuracy. Cross-validation or data from other jurisdictions would provide a stronger test.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:8px;"><strong style="color:var(--text-primary);">Region-specific:</strong> Calibration is derived from Coconino County terrain (high desert to alpine, 600&ndash;3,850m elevation). Other jurisdictions with different terrain profiles may require their own calibration.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">Small-sample profiles:</strong> Five profiles have fewer than 20 subjects and use global default multipliers. Rates for these profiles should be interpreted with caution.</p>
             </div>
 
-            <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Data source: Coconino County Sheriff&rsquo;s Office historical SAR records | Validation date: April 14, 2026 | Version 1.13</p>
+            <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Data source: Coconino County Sheriff&rsquo;s Office historical SAR records | Validation date: April 14, 2026 | Version 1.13</p>
 
             <div style="text-align:center;">
-                <button onclick="document.getElementById('validationModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
+                <button onclick="document.getElementById('validationModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Close</button>
             </div>
         </div>
     </div>
@@ -876,12 +876,12 @@
     <div class="modal-overlay hidden" id="ringInfoModal" onclick="if(event.target===this)this.classList.add('hidden');">
         <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:20px;margin-bottom:4px;">Understanding terrain-aware range rings</h2>
-            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">How the WiSAR tool transforms traditional range rings using terrain data</p>
+            <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">How the WiSAR tool transforms traditional range rings using terrain data</p>
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">1. Traditional range ring</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">In traditional SAR, a range ring draws a perfect circle around the IPP at the statistical find distance. If the 25th percentile is 2.5 km, every point on that circle is exactly 2.5 km from the IPP in a straight line.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">This assumes the lost person can travel equally easily in every direction, which is rarely true in the real world.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">In traditional SAR, a range ring draws a perfect circle around the IPP at the statistical find distance. If the 25th percentile is 2.5 km, every point on that circle is exactly 2.5 km from the IPP in a straight line.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">This assumes the lost person can travel equally easily in every direction, which is rarely true in the real world.</p>
                 <svg width="100%" viewBox="0 0 500 300" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="260" rx="4" fill="#3a5a2a" opacity="0.15"/>
                     <text x="40" y="35" font-family="inherit" font-size="11" fill="#7a9a6a">Flat, open grassland</text>
@@ -900,9 +900,9 @@
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">2. The string analogy</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Imagine a string connecting the IPP to a point on the 25th percentile ring. On flat, open ground, the string runs perfectly straight and the ring sits 2.5 km away.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Now imagine the string has to go over a hill. The string bends to follow the terrain. It's still 2.5 km of string, but the point where it ends is now closer to the IPP because the hill "used up" some of the string.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">Dense forest, steep slopes, and rough terrain all create "bends" in the string, pulling the ring closer. Trails and flat valleys let the string run straighter, so the ring contracts less in those directions.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Imagine a string connecting the IPP to a point on the 25th percentile ring. On flat, open ground, the string runs perfectly straight and the ring sits 2.5 km away.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Now imagine the string has to go over a hill. The string bends to follow the terrain. It's still 2.5 km of string, but the point where it ends is now closer to the IPP because the hill "used up" some of the string.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">Dense forest, steep slopes, and rough terrain all create "bends" in the string, pulling the ring closer. Trails and flat valleys let the string run straighter, so the ring contracts less in those directions.</p>
                 <svg width="100%" viewBox="0 0 500 280" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="220" rx="4" fill="#3a5a2a" opacity="0.15"/>
                     <path d="M20 180 Q130 180 190 120 Q230 80 270 80 Q310 80 350 120 Q410 180 480 180" fill="#8a7252" opacity="0.2"/>
@@ -921,9 +921,9 @@
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">3. The result: Terrain-Aware Range Rings (TARRs)</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">This tool does that string calculation for every direction simultaneously. Using elevation data, land cover, and trail networks, it computes the actual travel cost from the IPP to every point in the search area.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">The percentile rings then follow the contours of equal travel cost instead of equal straight-line distance. They stretch along trails and valleys where a person can travel easily, and compress against steep terrain, dense forest, and water barriers.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">The result is a more realistic picture of where a lost person could actually reach, accounting for the terrain they'd have to navigate.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">This tool does that string calculation for every direction simultaneously. Using elevation data, land cover, and trail networks, it computes the actual travel cost from the IPP to every point in the search area.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">The percentile rings then follow the contours of equal travel cost instead of equal straight-line distance. They stretch along trails and valleys where a person can travel easily, and compress against steep terrain, dense forest, and water barriers.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">The result is a more realistic picture of where a lost person could actually reach, accounting for the terrain they'd have to navigate.</p>
                 <svg width="100%" viewBox="0 0 500 300" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="260" rx="4" fill="#3a5a2a" opacity="0.15"/>
                     <text x="40" y="30" font-family="inherit" font-size="11" fill="#7a9a6a">Terrain with a hill, a trail, and a river</text>
@@ -970,7 +970,7 @@
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:var(--accent);margin-bottom:8px;">4. What the tool computes</h3>
-                <table style="width:100%;font-size:13px;color:var(--text-secondary);border-collapse:collapse;">
+                <table style="width:100%;font-size:14px;color:var(--text-secondary);border-collapse:collapse;">
                     <tr style="border-bottom:1px solid var(--border);">
                         <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Slope cost</td>
                         <td style="padding:6px 0;">Tobler's Hiking Function — walking uphill is slower, slight downhill is fastest</td>
@@ -995,7 +995,7 @@
             </div>
 
             <div style="text-align:center;margin-top:16px;">
-                <button onclick="document.getElementById('ringInfoModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Got it</button>
+                <button onclick="document.getElementById('ringInfoModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Got it</button>
             </div>
         </div>
     </div>
@@ -1015,12 +1015,12 @@
     <div class="modal-overlay hidden" id="travelTimeInfoModal" onclick="if(event.target===this)this.classList.add('hidden');">
         <div class="modal" style="max-width:680px;max-height:90vh;overflow-y:auto;text-align:left;padding:32px;">
             <h2 style="text-align:center;font-size:20px;margin-bottom:4px;">Understanding Travel Time analysis</h2>
-            <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:24px;">How the WiSAR tool models reachability over time, beyond simple speed times distance</p>
+            <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">How the WiSAR tool models reachability over time, beyond simple speed times distance</p>
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#00bcd4;margin-bottom:8px;">1. The simple answer</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">"If someone walks at 2 mph for 4 hours, they could be up to 8 miles away." That's the intuitive Travel Time estimate, and it traces a perfect circle of 8 miles around the IPP.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">It assumes constant flat-ground speed in every direction. On a hike across open prairie, that's roughly right. On real terrain, it's almost never right.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">"If someone walks at 2 mph for 4 hours, they could be up to 8 miles away." That's the intuitive Travel Time estimate, and it traces a perfect circle of 8 miles around the IPP.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">It assumes constant flat-ground speed in every direction. On a hike across open prairie, that's roughly right. On real terrain, it's almost never right.</p>
                 <svg width="100%" viewBox="0 0 500 300" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="260" rx="4" fill="#3a5a2a" opacity="0.15"/>
                     <text x="40" y="35" font-family="inherit" font-size="11" fill="#7a9a6a">Flat, open prairie</text>
@@ -1037,8 +1037,8 @@
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#00bcd4;margin-bottom:8px;">2. Time accumulates per step</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Each 30-meter step a person takes consumes some amount of time. On flat trail, it's a few seconds. Up a steep slope, the same 30 meters might take a minute. Through dense brush, even longer. Across a river, much longer or impossible.</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">The tool walks outward from the IPP step by step, accumulating time per cell based on local terrain. Some directions burn time fast (climbing a cliff). Other directions barely cost any time (cruising down a trail).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Each 30-meter step a person takes consumes some amount of time. On flat trail, it's a few seconds. Up a steep slope, the same 30 meters might take a minute. Through dense brush, even longer. Across a river, much longer or impossible.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">The tool walks outward from the IPP step by step, accumulating time per cell based on local terrain. Some directions burn time fast (climbing a cliff). Other directions barely cost any time (cruising down a trail).</p>
                 <svg width="100%" viewBox="0 0 500 240" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="220" rx="4" fill="#1a1d23"/>
                     <text x="40" y="30" font-family="inherit" font-size="11" fill="#7a9a6a">Same elapsed time, different distances reached</text>
@@ -1084,8 +1084,8 @@
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#00bcd4;margin-bottom:8px;">3. The result: deformed isochrones</h3>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Each isochrone contour traces the boundary of "where could the subject physically be after N hours." On real terrain those boundaries bulge outward along trails and valleys (more reachable in the same time) and pull inward against cliffs, dense forest, and water (less reachable).</p>
-                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">Travel Time uses the same anisotropic cost-distance engine as TARRs. The difference is what it measures: TARRs use statistical Lost Person Behavior find distances calibrated against historical missions; Travel Time uses pure physical reachability at a coordinator-supplied flat-ground speed. No subject profile required.</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px;">Each isochrone contour traces the boundary of "where could the subject physically be after N hours." On real terrain those boundaries bulge outward along trails and valleys (more reachable in the same time) and pull inward against cliffs, dense forest, and water (less reachable).</p>
+                <p style="font-size:14px;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">Travel Time uses the same anisotropic cost-distance engine as TARRs. The difference is what it measures: TARRs use statistical Lost Person Behavior find distances calibrated against historical missions; Travel Time uses pure physical reachability at a coordinator-supplied flat-ground speed. No subject profile required.</p>
                 <svg width="100%" viewBox="0 0 500 300" style="display:block;margin:0 auto;">
                     <rect x="20" y="10" width="460" height="260" rx="4" fill="#3a5a2a" opacity="0.15"/>
                     <text x="40" y="30" font-family="inherit" font-size="11" fill="#7a9a6a">Terrain with a hill, a trail, and a river</text>
@@ -1123,12 +1123,12 @@
                     <text x="395" y="153" font-family="inherit" font-size="11" fill="#5fd4e0" font-weight="600">3 hr</text>
                     <text x="445" y="153" font-family="inherit" font-size="11" fill="#9beae8" font-weight="600">4 hr</text>
                 </svg>
-                <p style="font-size:12px;color:var(--text-muted);line-height:1.5;font-style:italic;margin-top:12px;">Each isochrone indents over the hill, but each one stays clearly outside the next-inner one. The contours bunch close together over the hill (slow terrain = tighter spacing) and spread apart along the trail (fast terrain = wider spacing).</p>
+                <p style="font-size:13px;color:var(--text-muted);line-height:1.5;font-style:italic;margin-top:12px;">Each isochrone indents over the hill, but each one stays clearly outside the next-inner one. The contours bunch close together over the hill (slow terrain = tighter spacing) and spread apart along the trail (fast terrain = wider spacing).</p>
             </div>
 
             <div style="background:var(--bg-input);border-radius:8px;padding:20px;margin-bottom:20px;">
                 <h3 style="font-size:15px;color:#00bcd4;margin-bottom:12px;">What goes into the calculation</h3>
-                <table style="width:100%;font-size:13px;color:var(--text-secondary);line-height:1.6;">
+                <table style="width:100%;font-size:14px;color:var(--text-secondary);line-height:1.6;">
                     <tr style="border-bottom:1px solid var(--border);">
                         <td style="padding:6px 0;font-weight:600;color:var(--text-primary);">Base speed</td>
                         <td style="padding:6px 0;">Coordinator-supplied flat-ground walking speed (mph or km/h). Reflects subject fitness and likely pace.</td>
@@ -1153,7 +1153,7 @@
             </div>
 
             <div style="text-align:center;margin-top:16px;">
-                <button onclick="document.getElementById('travelTimeInfoModal').classList.add('hidden');" style="padding:10px 32px;background:#00bcd4;color:white;border:none;border-radius:6px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;">Got it</button>
+                <button onclick="document.getElementById('travelTimeInfoModal').classList.add('hidden');" style="padding:10px 32px;background:#00bcd4;color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Got it</button>
             </div>
         </div>
     </div>
