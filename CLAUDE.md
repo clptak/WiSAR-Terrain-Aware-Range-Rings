@@ -22,7 +22,8 @@ overlays, GeoTIFFs, KML/GeoJSON, and a push to CalTopo.
 
 **Everything is synchronous.** `/api/analyze` blocks for tens of seconds
 to minutes — a pure-Python `heapq` Dijkstra over up to 1000×1000 cells
-plus one external HTTP fetch (3DEP, 120 s timeout) and three local
+plus one external HTTP fetch (3DEP, 60 s timeout, then the
+staged-tile fallback) and three local
 snapshot reads. The front end fakes progress
 with an 8-second message rotator; it is not real progress. The long gunicorn and
 nginx timeouts that make this work are configured **only on the server**, so any
@@ -84,6 +85,50 @@ MRLC WMS and USGS hydro MapServer paths were retired in v1.17 after they
 became the pipeline's bottleneck (120 s and 3×60 s timeouts) and, worse,
 silently dropped layers on timeout. `tools/compare_sources.py` still
 carries copies of those fetchers for regression checks.
+
+### The DEM has a failure-only fallback
+
+`download_dem` tries the 3DEP ImageServer (60 s timeout) and, on any
+failure — timeout, HTTP error, a 200 that is not a GeoTIFF — hands off to
+`pipeline/dem_fallback.py`, which window-reads the staged USGS tiles at
+`https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/TIFF/current/<n35w112>/USGS_1_<n35w112>.tif`
+over `/vsicurl/` and warps them onto the grid the ImageServer would have
+returned. It returns `(path, warnings)` like the other loaders; a fallback
+run carries one `info` note in the results panel. Only when both sources
+fail does the analysis fail, with a plain-language message. Zero disk, no
+cron, nothing to keep fresh. 3DEP's own record is clean (81 requests
+June–September 2026, zero failures, median 2 s, worst 45 s), so expect
+this path to run rarely.
+
+Things measured in September 2026 that are easy to get wrong:
+
+- **1 arc-second tiles first, 1/3 arc-second second — not the reverse.**
+  At the 30 m+ cells this pipeline asks for, the ImageServer's answer
+  matches the 1 arc-second tiles (0.1–1.5 m RMS over five of six test
+  areas, 3.6 m in the Alaska Range) far better than the 1/3 arc-second
+  ones (1–4 m), and slope differs by about a third as much. The earlier
+  belief that 30 m tiles would be a downgrade was wrong.
+- **It is close, not identical.** With uniform friction, so slope is the
+  only terrain input, TARR ring areas moved 2–3% and the p25 ring's
+  overlap with the live result was 0.82–0.93 (about one cell of boundary
+  shift). That is why the note is shown rather than suppressed.
+- **The ImageServer does not return the bbox it is sent.** It keeps the
+  pixel count and makes pixels square in degrees, growing the extent
+  north-south. `imageserver_extent()` reproduces that; with it the two
+  grids are identical to 1e-9°.
+- **A 404 is "no tile" (ocean); anything else must fail the read.** Each
+  tile gets a HEAD first so an S3 error cannot leave a silent hole.
+  `CPL_VSIL_CURL_NON_CACHED` stops GDAL remembering a failure for the
+  life of the gunicorn worker.
+- Tiles are one degree, named by their NW corner, with overviews; large
+  analyses read an overview instead of full resolution.
+
+**Do not cache a national DEM.** The 1 arc-second set is 3,231 tiles /
+103 GB, and elevation never changes, so a cron job buys nothing.
+
+To exercise the fallback without an outage, make `requests.get` raise in
+a scratch venv and compare against a live run — do not test it by
+breaking anything on the server.
 
 `app/requirements.txt` was captured from the production venv. The geospatial
 stack is tightly coupled — rasterio, geopandas, pyogrio and fiona all bind the

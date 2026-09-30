@@ -233,7 +233,7 @@ def main():
     report = {'ipp': [args.lat, args.lng], 'bbox': list(bbox),
               'percentiles_km': [args.p25, args.p50, args.p75]}
 
-    dem_path = download_dem(bbox)
+    dem_path, _ = download_dem(bbox)
     osm = download_osm_features(bbox)
     osm.pop('_warnings', None)
 

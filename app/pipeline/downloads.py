@@ -2,7 +2,8 @@
 # Module:       pipeline/downloads.py
 # Purpose:      Data acquisition for the WiSAR analysis pipeline.
 #               Downloads elevation (USGS 3DEP) live — the only remaining
-#               network request — and reads land cover (NLCD), hydrology
+#               network request, with the staged USGS tiles as a failure-only
+#               fallback — and reads land cover (NLCD), hydrology
 #               (NHDPlus HR) and trail/road/power line networks (OSM) from
 #               local snapshots under /var/www/sar.weleber.net/cache/.
 # Author:       Jamie F. Weleber
@@ -50,11 +51,21 @@ def download_dem(bbox, output_path=None):
     We request it at 30m resolution to match the NLCD land cover grid,
     ensuring both rasters align cell-for-cell without resampling artifacts.
 
+    The 3DEP ImageServer is the primary source. If it fails for any reason
+    (timeout, HTTP error, a body that is not a GeoTIFF), USGS elevation is
+    read from the staged tiles on the USGS S3 bucket instead and warped
+    onto the identical grid — see pipeline/dem_fallback.py. The two agree
+    to about a metre, which moves TARR ring areas by 2–3%, so the run
+    carries an 'info' note. Only when both fail does the analysis fail.
+
     Args:
         bbox: (west, south, east, north) in decimal degrees
         output_path: Optional path to save the GeoTIFF
     Returns:
-        Path to the downloaded DEM GeoTIFF
+        (path, warnings): the DEM GeoTIFF path, plus a list of user-facing
+        warning dicts (one 'info' note when the backup source was used).
+    Raises:
+        RuntimeError: if both the ImageServer and the staged tiles fail.
     """
     if output_path is None:
         output_path = os.path.join(WORK_DIR, 'dem.tif')
@@ -91,14 +102,42 @@ def download_dem(bbox, output_path=None):
         'f': 'image'                                # Return raw image bytes, not JSON metadata
     }
     print(f"  Downloading DEM: {width_px}x{height_px} pixels...")
-    response = requests.get(url, params=params, timeout=120,
-                            headers={'User-Agent': WISAR_USER_AGENT})
-    response.raise_for_status()
-    with open(output_path, 'wb') as f:
-        f.write(response.content)
-    with rasterio.open(output_path) as src:
-        print(f"  DEM downloaded: {src.width}x{src.height}, CRS: {src.crs}")
-    return output_path
+    try:
+        # 60 s, not the 120 s this used until the fallback existed: the
+        # slowest request on record took 45 s, and a hung ImageServer should
+        # hand off to the staged tiles within a minute.
+        response = requests.get(url, params=params, timeout=60,
+                                headers={'User-Agent': WISAR_USER_AGENT})
+        response.raise_for_status()
+        with open(output_path, 'wb') as f:
+            f.write(response.content)
+        # Opening it is the check that the body is a GeoTIFF: the ImageServer
+        # can answer HTTP 200 with a JSON error.
+        with rasterio.open(output_path) as src:
+            print(f"  DEM downloaded: {src.width}x{src.height}, CRS: {src.crs}")
+        return output_path, []
+    except Exception as primary_error:
+        print(f"  WARNING: 3DEP ImageServer failed: {primary_error}. "
+              f"Reading the staged USGS tiles instead...")
+
+    from pipeline import dem_fallback
+    try:
+        dem_fallback.load_dem_from_tiles(bbox, width_px, height_px, output_path,
+                                         WISAR_USER_AGENT)
+    except Exception as fallback_error:
+        print(f"  ERROR: staged USGS tile read failed: {fallback_error}")
+        raise RuntimeError(
+            'Elevation data unavailable — the USGS 3DEP elevation service and '
+            'the backup USGS elevation tiles both failed. Try again in a few '
+            'minutes.') from fallback_error
+    return output_path, [{
+        'severity': 'info',
+        'source': 'dem',
+        'message': ('Elevation came from the backup source — the USGS 3DEP '
+                    'elevation service did not respond, so USGS elevation was '
+                    'read from the staged USGS tiles instead. Boundaries may '
+                    'differ slightly (a few percent in area) from a normal run.'),
+    }]
 
 
 # ===============================================================================

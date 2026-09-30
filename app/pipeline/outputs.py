@@ -327,7 +327,7 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     print(f"  Bbox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
 
     print("\n[2/7] Downloading DEM...")
-    dem_path = download_dem(bbox)
+    dem_path, dem_warnings = download_dem(bbox)
 
     print("\n[3/7] Loading NLCD land cover from the snapshot...")
     nlcd_path, nlcd_warnings = download_nlcd(bbox)
@@ -386,7 +386,7 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
         'base_speed_kmh': base_speed_kmh,
         'time_intervals_hours': time_intervals_hours,
         # Data-source warnings in pipeline order; the UI shows each one.
-        'warnings': nlcd_warnings + osm_warnings + nhd_warnings,
+        'warnings': dem_warnings + nlcd_warnings + osm_warnings + nhd_warnings,
         # Path to the 5-band Jacobs attractor masks GeoTIFF (see run_analysis)
         'jacobs_masks_path': jacobs_masks_path,
     }
@@ -404,7 +404,7 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
     bbox = get_bbox_from_ipp(ipp_lat, ipp_lng, radius_km)
     print(f"  Bbox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
     print("\n[2/7] Downloading DEM...")
-    dem_path = download_dem(bbox)
+    dem_path, dem_warnings = download_dem(bbox)
     print("\n[3/7] Loading NLCD land cover from the snapshot...")
     nlcd_path, nlcd_warnings = download_nlcd(bbox)
     print("\n[4/7] Loading OSM features from the weekly snapshot...")
@@ -453,7 +453,7 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
         'probability_path': prob_path, 'work_dir': WORK_DIR,
         'contour_geojson': contour_geojson,
         # Data-source warnings in pipeline order; the UI shows each one.
-        'warnings': nlcd_warnings + osm_warnings + nhd_warnings,
+        'warnings': dem_warnings + nlcd_warnings + osm_warnings + nhd_warnings,
         # Path to the 5-band Jacobs attractor masks GeoTIFF used by the
         # heatmap renderer. May be None if mask computation failed; the
         # renderer handles that gracefully (cold surface).

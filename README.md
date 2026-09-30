@@ -13,7 +13,7 @@ A web-based spatial analysis tool for Wilderness SAR operations. Instead of draw
 
 Given an IPP (the point where a lost person was last seen) and either a subject profile (hiker, child, dementia patient, etc.) or a travel speed, the tool:
 
-1. **Gathers geospatial data** — elevation (USGS 3DEP) is fetched live; everything else comes from snapshots on the server: land cover (Annual NLCD 2024, CONUS, refreshed yearly), hydrography (USGS NHDPlus High Resolution, every basin, refreshed quarterly), and trails, roads, waterways, and power lines (OpenStreetMap, all 50 states and DC, rebuilt weekly from Geofabrik extracts).
+1. **Gathers geospatial data** — elevation (USGS 3DEP) is fetched live, with the staged USGS elevation tiles as an automatic backup if that service is down; everything else comes from snapshots on the server: land cover (Annual NLCD 2024, CONUS, refreshed yearly), hydrography (USGS NHDPlus High Resolution, every basin, refreshed quarterly), and trails, roads, waterways, and power lines (OpenStreetMap, all 50 states and DC, rebuilt weekly from Geofabrik extracts).
 2. **Builds a friction surface** — each 30m cell gets a cost multiplier based on land cover type, calibrated to off-trail speed literature (Imhof 1950). Trails, roads, and power line corridors are burned in at friction 1.0; water features from NHD and OSM act as high-impedance barriers.
 3. **Computes anisotropic cost-distance** — Dijkstra's algorithm with per-edge Tobler's Hiking Function, cross-slope penalty, and 3D surface distance.
 4. **Applies per-band calibration** — Coconino County calibration multipliers (M25, M50, M75) scale each percentile threshold independently to correct the nonlinear contraction of TARRs in rugged terrain.
@@ -54,6 +54,7 @@ app/
 │   ├── __init__.py        Public API re-exports
 │   ├── shared.py          Constants, utilities, bbox functions
 │   ├── downloads.py       Data acquisition (DEM live; NLCD, NHD, OSM from snapshots)
+│   ├── dem_fallback.py    Backup DEM source: staged USGS tiles, read only if 3DEP fails
 │   ├── osm_cache.py       Local OSM snapshot reader (weekly Geofabrik refresh)
 │   ├── nlcd_cache.py      Local NLCD snapshot reader (yearly MRLC refresh)
 │   ├── nhd_cache.py       Local NHDPlus HR snapshot reader (quarterly USGS refresh)
@@ -75,7 +76,7 @@ app/
 
 | Data | Source | Resolution |
 |------|--------|-----------|
-| Elevation | USGS 3DEP (1/3 arc-second) | 30m |
+| Elevation | USGS 3DEP ImageServer; staged USGS 1 arc-second tiles if it is unavailable | 30m |
 | Land cover | Annual NLCD 2024 (local CONUS snapshot) | 30m |
 | Trails, roads, power lines | OpenStreetMap (weekly local snapshot, all 50 states + DC) | Vector |
 | Hydrology | USGS NHDPlus High Resolution, 1:24k (local snapshot) — waterbodies, area features, flowlines with Strahler order | Vector |
