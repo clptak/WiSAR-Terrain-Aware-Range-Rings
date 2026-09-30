@@ -62,14 +62,21 @@ raster paths.
 - The `.png` routes are more specific than `/<filename>`; do not add a
   `<filename>` variant that shadows them.
 
-## Suspected real bug, verify before touching
+## Calibration lives in the front end only
 
-`app.js` multiplies p25/p50/p75 by per-band `CALIBRATION_MULTIPLIERS` **and**
-sends `params.profile`; `server.py` then applies a *second*, scalar multiplier
-(default 1.40) to the already-calibrated values. The two tables disagree in both
-shape and values, and the README states calibration is front-end only. This
-changes search areas that real teams act on — **verify against production
-behaviour before changing either table.**
+`app.js` multiplies p25/p50/p75 by the per-band `CALIBRATION_MULTIPLIERS`
+before posting them; `server.py` must use them as sent. From v1.11 until
+2026-09-30 the server also applied a leftover v1.06 scalar table (default
+1.40) whenever `params.profile` arrived, so rings were larger than the
+displayed calibration (Hunter: smaller). The Phase 2 harness posted no
+profile, which is why validation never saw it. `profile` is still sent
+and is logged only — do not reintroduce server-side scaling.
+
+The validation harness, the 362 cases and the recorded results are in
+`D:\OneDrive\Desktop\MRU Temp\jamie` (not in git: Sheriff's Office case
+data). Per-profile per-band containment was 26.2 / 50.0 / 77.1%, measured
+in April 2026 against the live data sources, before the v1.16–v1.17
+snapshots.
 
 ## Environment and integrations
 

@@ -15,20 +15,6 @@ app = Flask(__name__, static_folder='static')
 analyses = {}
 analysis_lock = threading.Lock()
 
-# Coconino County calibration multipliers derived from Phase 2 validation
-# (n=360 subjects, 253 missions). Each multiplier is the single value that
-# minimizes total absolute error across p25/p50/p75 containment rates.
-# Profiles with n<20 fall back to the global multiplier (1.40).
-CALIBRATION_MULTIPLIERS = {
-    'Hiker':          1.15,   # n=183
-    'Skier (Alpine)': 2.15,   # n=36
-    'Dementia':       2.55,   # n=29
-    'Mental Illness': 4.05,   # n=25
-    'Despondent':     1.65,   # n=21
-    'Hunter':         0.80,   # n=21
-    'Child (10-12)':  1.55,   # n=20
-}
-CALIBRATION_DEFAULT = 1.40
 RESULTS_DIR = '/tmp/wisar_results'
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -183,15 +169,18 @@ def run_analysis_endpoint():
         has_percentiles = p25 > 0 and p50 > 0 and p75 > 0
         if has_percentiles and (p25 >= p50 or p50 >= p75):
             return jsonify({'status':'error','message':'Percentiles must be three increasing positive values'}), 400
-        # Apply Coconino calibration multiplier to Koester percentiles
+        # The percentiles arrive already calibrated: app.js applies the
+        # Coconino per-band multipliers (M25/M50/M75) before sending them.
+        # Do NOT scale them here. From v1.11 until September 30, 2026 this
+        # block applied a second, single multiplier from the older v1.06
+        # table whenever a profile name was sent, so every ring was drawn
+        # larger (Hunter: smaller) than the displayed and validated
+        # calibration. The Phase 2 validation posted no profile and so
+        # never exercised it. The profile is now used for logging only.
         profile_name = data.get('profile', '')
-        multiplier = 1.0
-        if has_percentiles and profile_name:
-            multiplier = CALIBRATION_MULTIPLIERS.get(profile_name, CALIBRATION_DEFAULT)
-            p25 *= multiplier
-            p50 *= multiplier
-            p75 *= multiplier
-            print(f"  Calibration: {profile_name} x{multiplier:.2f} -> p25={p25:.2f}, p50={p50:.2f}, p75={p75:.2f} km")
+        if has_percentiles:
+            print(f"  Thresholds ({profile_name or 'no profile'}, calibrated by the front end): "
+                  f"p25={p25:.2f}, p50={p50:.2f}, p75={p75:.2f} km")
         if not has_percentiles:
             p25, p50, p75 = 1.0, 2.0, 3.0  # dummy values, won't be used
         # Radius auto-computed from calibrated p75 + 2 km padding, ensuring the
@@ -215,7 +204,8 @@ def run_analysis_endpoint():
         warnings = result.get('warnings', [])
         return jsonify({'status':'ok','analysis_id':analysis_id,
             'has_percentiles':has_percentiles,
-            'calibration': {'profile': profile_name, 'multiplier': multiplier} if multiplier != 1.0 else None,
+            # Kept for response compatibility; the server applies no calibration.
+            'calibration': None,
             'contour_geojson':contour_geojson,
             'warnings':warnings,
             'bounds':{'west':bounds.left,'south':bounds.bottom,'east':bounds.right,'north':bounds.top},
