@@ -1664,7 +1664,7 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 1,
-                "description": "TARR 0.1; travel time 0.01 (effectively no fill). Never 0: CloudTAK's GeoJSON import drops a 0 and falls back to a 50% fill."
+                "description": "0.1 for TARR and travel-time rings. Never 0: CloudTAK's GeoJSON import drops a 0 and falls back to a 50% fill."
               }
             }
           }

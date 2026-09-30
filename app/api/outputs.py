@@ -74,12 +74,11 @@ def grid_info(cd_path):
 # (api/web/src/base/cot.ts) and ignores the pipeline's `color`; without them
 # every polygon renders as red #d63939 at 50% fill.
 #
-# Fill opacity can't be 0: CloudTAK's GeoJSON import (node-cot
+# Never set fill opacity to 0: CloudTAK's GeoJSON import (node-cot
 # normalize_geojson.js) drops falsy numbers, and from_geojson.js then
-# defaults the fill to 50%. 0.01 becomes alpha 2/255 in CoT - invisible - so
-# travel-time rings read as outlines while staying polygons.
+# defaults the fill to 50%. Use 0.01 (alpha 2/255 in CoT) for "no fill".
 STROKE_WIDTH = 3
-FILL_OPACITY = {'tarr': 0.1, 'travel_time': 0.01}
+FILL_OPACITY = {'tarr': 0.1, 'travel_time': 0.1}
 
 
 def enrich_contours(geojson, job_type):
