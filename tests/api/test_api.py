@@ -80,7 +80,7 @@ def test_tarr_listed_end_to_end(client, fake_pipeline):
     # CloudTAK styling: per-ring colour, outline only
     colors = [f['properties']['stroke'] for f in gj.json['features']]
     assert colors == ['#ffffff', '#ffca00', '#ff6a1a']
-    assert all(f['properties']['fill'] == f['properties']['color'] and f['properties']['fill-opacity'] == 0
+    assert all(f['properties']['fill'] == f['properties']['color'] and f['properties']['fill-opacity'] == 0.1
                and f['properties']['stroke-width'] == 3 for f in gj.json['features'])
 
     kml = client.get(job['outputs']['contours.kml']['href'], headers=ALICE)
@@ -193,6 +193,9 @@ def test_travel_time_end_to_end(client, fake_pipeline):
     gj = client.get(job['outputs']['contours.geojson']['href'], headers=ALICE).json
     assert [f['properties']['callsign'] for f in gj['features']] == ['2h', '4.5h', '8h']
     assert gj['features'][0]['properties']['remarks'] == 'Travel time: 2h at flat-ground speed'
+    # effectively no fill: 0 would be dropped by CloudTAK's import and become 50%
+    assert {f['properties']['fill-opacity'] for f in gj['features']} == {0.01}
+    assert {f['properties']['stroke-width'] for f in gj['features']} == {3}
     r = client.get(f"/api/v1/jobs/{job['id']}/outputs/probability.tif", headers=ALICE)
     assert r.status_code == 404
 

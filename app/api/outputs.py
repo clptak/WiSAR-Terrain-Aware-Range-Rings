@@ -72,10 +72,14 @@ def grid_info(cd_path):
 
 # CloudTAK styles features from these simplestyle-like properties
 # (api/web/src/base/cot.ts) and ignores the pipeline's `color`; without them
-# every polygon renders as red #d63939 at 50% fill. Outline only, like the
-# web tool's contours.
+# every polygon renders as red #d63939 at 50% fill.
+#
+# Fill opacity can't be 0: CloudTAK's GeoJSON import (node-cot
+# normalize_geojson.js) drops falsy numbers, and from_geojson.js then
+# defaults the fill to 50%. 0.01 becomes alpha 2/255 in CoT - invisible - so
+# travel-time rings read as outlines while staying polygons.
 STROKE_WIDTH = 3
-FILL_OPACITY = 0
+FILL_OPACITY = {'tarr': 0.1, 'travel_time': 0.01}
 
 
 def enrich_contours(geojson, job_type):
@@ -86,7 +90,7 @@ def enrich_contours(geojson, job_type):
         p = f.setdefault('properties', {})
         color = p.get('color') or '#ffffff'
         p.update({'stroke': color, 'stroke-width': STROKE_WIDTH, 'stroke-opacity': 1,
-                  'fill': color, 'fill-opacity': FILL_OPACITY})
+                  'fill': color, 'fill-opacity': FILL_OPACITY[job_type]})
         if job_type == 'travel_time':
             p['callsign'] = p.get('label') or f"{p.get('hours')}h"
             p['remarks'] = f"Travel time: {_num(p.get('hours'))}h at flat-ground speed"
