@@ -17,7 +17,7 @@ echo "== health"
 curl -fsS "$BASE/health"; echo
 
 echo "== profiles"
-curl -fsS "${AUTH[@]}" "$BASE/profiles" | json "len(d['datasets'][0]['categories']), 'categories in', d['default_dataset']"
+curl -fsS ${AUTH[@]+"${AUTH[@]}"} "$BASE/profiles" | json "len(d['datasets'][0]['categories']), 'categories in', d['default_dataset']"
 
 # West Fork of Oak Creek trailhead (the README example area).
 IPP='{"lat": 34.9867, "lon": -111.7474}'
@@ -30,14 +30,14 @@ else
 fi
 
 echo "== submit $MODE"
-RESP=$(curl -fsS "${AUTH[@]}" -H 'Content-Type: application/json' -d "$BODY" "$URL")
+RESP=$(curl -fsS ${AUTH[@]+"${AUTH[@]}"} -H 'Content-Type: application/json' -d "$BODY" "$URL")
 ID=$(echo "$RESP" | json "d['id']")
 echo "job $ID"; echo "$RESP" | json "json.dumps(d['resolved'])"
 
 echo "== poll"
 START=$(date +%s)
 while :; do
-  JOB=$(curl -fsS "${AUTH[@]}" "$BASE/jobs/$ID")
+  JOB=$(curl -fsS ${AUTH[@]+"${AUTH[@]}"} "$BASE/jobs/$ID")
   STATUS=$(echo "$JOB" | json "d['status']")
   printf '\r  %-10s %4ss' "$STATUS" "$(( $(date +%s) - START ))"
   case "$STATUS" in succeeded|failed) echo; break;; esac
@@ -49,7 +49,7 @@ echo "$JOB" | json "'cell %s m, %d contours, warnings: %s' % (d['result']['cell_
 echo "== download"
 OUT="smoke-out/$ID"; mkdir -p "$OUT"
 for NAME in $(echo "$JOB" | json "' '.join(d['outputs'])"); do
-  curl -fsS "${AUTH[@]}" -o "$OUT/$NAME" "${WISAR_URL:-http://localhost:8000}/api/v1/jobs/$ID/outputs/$NAME"
+  curl -fsS ${AUTH[@]+"${AUTH[@]}"} -o "$OUT/$NAME" "${WISAR_URL:-http://localhost:8000}/api/v1/jobs/$ID/outputs/$NAME"
   printf '  %-22s %8s bytes\n' "$NAME" "$(wc -c < "$OUT/$NAME" | tr -d ' ')"
 done
 echo "done: $OUT"
