@@ -921,5 +921,206 @@ def export_tarrs_to_caltopo():
         traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+# ============================================================
+# CloudTAK DataSync push
+# ------------------------------------------------------------
+# WiSAR does not hold a TAK client certificate. A CloudTAK user
+# token (the etl. API token from POST /profile/token) already
+# carries that user's TAK certificate. These routes store that
+# token and call CloudTAK's mission API. The token is never
+# returned to the browser.
+# ============================================================
+TAK_CONFIG_PATH = os.environ.get('WISAR_TAK_CONFIG', '/var/wisar/tak-config.json')
+TAK_LAYER_NAME = 'WiSAR Distance Traveled'
+TAK_GEOJSON_NAME = 'WiSAR Distance Traveled.geojson'
+
+
+def load_tak_config():
+    """Return (url, token). A saved file wins over the environment."""
+    if os.path.isfile(TAK_CONFIG_PATH):
+        with open(TAK_CONFIG_PATH, 'r') as f:
+            saved = json.load(f)
+        url = (saved.get('url') or '').rstrip('/')
+        token = saved.get('token') or ''
+        return url, token
+    url = os.environ.get('CLOUDTAK_API_URL', '').rstrip('/')
+    token = os.environ.get('CLOUDTAK_API_TOKEN', '')
+    return url, token
+
+
+def tak_is_configured():
+    url, token = load_tak_config()
+    return bool(url and token), url
+
+
+def cloudtak_request(method, path, query=None, body=None, content_type=None, timeout=60):
+    """Call CloudTAK with the stored bearer token.
+
+    Raises urllib.error.HTTPError or URLError. The token is not placed
+    on the URL, so those exceptions do not contain it.
+    """
+    url, token = load_tak_config()
+    if not url or not token:
+        raise RuntimeError('CloudTAK is not configured')
+    target = url + path
+    if query:
+        target += '?' + urllib.parse.urlencode(query)
+    data = None
+    headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/json'}
+    if body is not None:
+        data = body if isinstance(body, bytes) else json.dumps(body).encode('utf-8')
+        headers['Content-Type'] = content_type or 'application/json'
+    req = urllib.request.Request(target, data=data, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        raw = response.read().decode()
+        if not raw.strip():
+            return {}
+        return json.loads(raw)
+
+
+def cloudtak_error_message(err):
+    """Plain-language message from a CloudTAK HTTP error. Never includes the token."""
+    if isinstance(err, urllib.error.HTTPError):
+        detail = ''
+        try:
+            payload = json.loads(err.read().decode())
+            detail = payload.get('message') or ''
+        except Exception:
+            detail = ''
+        if err.code in (401, 403):
+            return 'CloudTAK rejected the token.'
+        if detail:
+            return f'CloudTAK returned HTTP {err.code}: {detail}'
+        return f'CloudTAK returned HTTP {err.code}'
+    if isinstance(err, urllib.error.URLError):
+        return 'Could not reach CloudTAK.'
+    return str(err)
+
+
+def _layer_nodes(payload):
+    if isinstance(payload, dict):
+        data = payload.get('data')
+        if isinstance(data, list):
+            return data
+        items = payload.get('items')
+        if isinstance(items, list):
+            return items
+    if isinstance(payload, list):
+        return payload
+    return []
+
+
+def _walk_layers(layers):
+    for layer in layers or []:
+        yield layer
+        yield from _walk_layers(layer.get('mission_layers') or [])
+
+
+def _layer_uid(payload):
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get('data') if isinstance(payload.get('data'), dict) else payload
+    uid = data.get('uid') if isinstance(data, dict) else None
+    return uid or None
+
+
+@app.route('/api/tak/config', methods=['GET'])
+def tak_config_status():
+    configured, url = tak_is_configured()
+    return jsonify({'status': 'ok', 'configured': configured, 'url': url})
+
+
+@app.route('/api/tak/config', methods=['POST'])
+def tak_config_save():
+    try:
+        data = request.get_json() or {}
+        url = (data.get('url') or '').strip().rstrip('/')
+        token = (data.get('token') or '').strip()
+        if not url.startswith('http://') and not url.startswith('https://'):
+            return jsonify({'status': 'error', 'message': 'Enter a CloudTAK API URL starting with http:// or https://'}), 400
+        if not token:
+            return jsonify({'status': 'error', 'message': 'Enter the CloudTAK bearer token.'}), 400
+        os.makedirs(os.path.dirname(TAK_CONFIG_PATH), exist_ok=True)
+        tmp = TAK_CONFIG_PATH + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump({'url': url, 'token': token}, f)
+        os.replace(tmp, TAK_CONFIG_PATH)
+        os.chmod(TAK_CONFIG_PATH, 0o600)
+        print('TAK config saved')
+        return jsonify({'status': 'ok', 'configured': True, 'url': url})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/tak/missions', methods=['GET'])
+def tak_list_missions():
+    configured, _url = tak_is_configured()
+    if not configured:
+        return jsonify({'status': 'error', 'message': 'CloudTAK is not configured. Open TAK connection and save a URL and token.'}), 400
+    try:
+        payload = cloudtak_request('GET', '/marti/mission')
+        items = []
+        for mission in payload.get('items') or []:
+            name = mission.get('name')
+            guid = mission.get('guid')
+            if name and guid:
+                items.append({'name': name, 'guid': guid})
+        return jsonify({'status': 'ok', 'items': items})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': cloudtak_error_message(e)}), 502
+
+
+@app.route('/api/tak/export', methods=['POST'])
+def tak_export_geojson():
+    """Upload contour GeoJSON into the WiSAR Distance Traveled mission folder."""
+    configured, _url = tak_is_configured()
+    if not configured:
+        return jsonify({'status': 'error', 'message': 'CloudTAK is not configured. Open TAK connection and save a URL and token.'}), 400
+    try:
+        data = request.get_json() or {}
+        guid = (data.get('guid') or '').strip()
+        geojson = data.get('geojson')
+        features = (geojson or {}).get('features') if isinstance(geojson, dict) else None
+        if not guid:
+            return jsonify({'status': 'error', 'message': 'Select a DataSync mission.'}), 400
+        if not features:
+            return jsonify({'status': 'error', 'message': 'No contour data available.'}), 400
+
+        layers = _layer_nodes(cloudtak_request('GET', f'/marti/missions/{urllib.parse.quote(guid, safe="")}/layer'))
+        parent_uid = None
+        for layer in _walk_layers(layers):
+            if layer.get('type') == 'GROUP' and layer.get('name') == TAK_LAYER_NAME:
+                parent_uid = layer.get('uid')
+                break
+        if not parent_uid:
+            created = cloudtak_request(
+                'POST',
+                f'/marti/missions/{urllib.parse.quote(guid, safe="")}/layer',
+                body={'name': TAK_LAYER_NAME, 'type': 'GROUP'},
+            )
+            parent_uid = _layer_uid(created)
+        if not parent_uid:
+            return jsonify({'status': 'error', 'message': 'CloudTAK did not return a folder id for WiSAR Distance Traveled.'}), 502
+
+        body = json.dumps(geojson).encode('utf-8')
+        cloudtak_request(
+            'POST',
+            f'/marti/missions/{urllib.parse.quote(guid, safe="")}/upload',
+            query={'name': TAK_GEOJSON_NAME, 'parentUid': parent_uid},
+            body=body,
+            content_type='application/geo+json',
+            timeout=120,
+        )
+        return jsonify({
+            'status': 'ok',
+            'message': f'Uploaded contours to {TAK_LAYER_NAME}.',
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': cloudtak_error_message(e)}), 502
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

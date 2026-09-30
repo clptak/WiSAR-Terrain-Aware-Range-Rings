@@ -30,7 +30,8 @@ RUN pip install --no-cache-dir --only-binary=:all: --no-binary=fiona -r requirem
 COPY app/ /opt/wisar/
 
 RUN useradd --create-home --uid 1000 wisar \
-    && chown -R wisar:wisar /opt/wisar
+    && mkdir -p /var/wisar \
+    && chown -R wisar:wisar /opt/wisar /var/wisar
 
 USER wisar
 
