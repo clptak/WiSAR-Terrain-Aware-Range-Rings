@@ -1594,7 +1594,12 @@
               "callsign",
               "remarks",
               "color",
-              "threshold_m"
+              "threshold_m",
+              "stroke",
+              "stroke-width",
+              "stroke-opacity",
+              "fill",
+              "fill-opacity"
             ],
             "properties": {
               "callsign": {
@@ -1635,6 +1640,31 @@
               },
               "label_lng": {
                 "type": "number"
+              },
+              "stroke": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Outline colour (same as color). CloudTAK reads this, not color."
+              },
+              "stroke-width": {
+                "type": "number",
+                "description": "Outline width in pixels."
+              },
+              "stroke-opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "fill": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Fill colour (same as color)."
+              },
+              "fill-opacity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "0 = outline only, as in the web tool."
               }
             }
           }

@@ -77,6 +77,11 @@ def test_tarr_listed_end_to_end(client, fake_pipeline):
     props = gj.json['features'][0]['properties']
     assert props['callsign'] == '25% Percentile TARR'
     assert props['remarks'] == 'Threshold: 1.61 km cost-distance'
+    # CloudTAK styling: per-ring colour, outline only
+    colors = [f['properties']['stroke'] for f in gj.json['features']]
+    assert colors == ['#ffffff', '#ffca00', '#ff6a1a']
+    assert all(f['properties']['fill'] == f['properties']['color'] and f['properties']['fill-opacity'] == 0
+               and f['properties']['stroke-width'] == 3 for f in gj.json['features'])
 
     kml = client.get(job['outputs']['contours.kml']['href'], headers=ALICE)
     root = ET.fromstring(kml.data)

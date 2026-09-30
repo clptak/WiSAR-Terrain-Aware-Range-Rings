@@ -70,11 +70,23 @@ def grid_info(cd_path):
     }
 
 
+# CloudTAK styles features from these simplestyle-like properties
+# (api/web/src/base/cot.ts) and ignores the pipeline's `color`; without them
+# every polygon renders as red #d63939 at 50% fill. Outline only, like the
+# web tool's contours.
+STROKE_WIDTH = 3
+FILL_OPACITY = 0
+
+
 def enrich_contours(geojson, job_type):
-    """Add TAK-friendly callsign/remarks; the pipeline itself is untouched."""
+    """Add TAK-friendly callsign/remarks and CloudTAK style properties;
+    the pipeline itself is untouched."""
     fc = copy.deepcopy(geojson) if geojson else {'type': 'FeatureCollection', 'features': []}
     for f in fc.get('features', []):
         p = f.setdefault('properties', {})
+        color = p.get('color') or '#ffffff'
+        p.update({'stroke': color, 'stroke-width': STROKE_WIDTH, 'stroke-opacity': 1,
+                  'fill': color, 'fill-opacity': FILL_OPACITY})
         if job_type == 'travel_time':
             p['callsign'] = p.get('label') or f"{p.get('hours')}h"
             p['remarks'] = f"Travel time: {_num(p.get('hours'))}h at flat-ground speed"
