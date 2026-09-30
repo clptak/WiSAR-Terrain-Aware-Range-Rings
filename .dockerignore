@@ -1,0 +1,9 @@
+.git
+.github
+docs
+app/tarr_example.png
+app/tarr_example_v1_15.png
+**/__pycache__
+**/*.pyc
+.env
+**/.DS_Store

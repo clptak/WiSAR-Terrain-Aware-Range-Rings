@@ -254,6 +254,8 @@ def extract_isochrone_polygons(cost_distance_path, base_speed_kmh, time_interval
                     'properties': {
                         'hours': hours,
                         'label': label,
+                        'callsign': label,
+                        'remarks': f"Travel time: {hours}h at flat-ground speed",
                         # Store the cost-distance threshold (meters) that corresponds
                         # to this time interval, useful for debugging and metadata
                         'threshold_m': hours * speed_m_per_h,
