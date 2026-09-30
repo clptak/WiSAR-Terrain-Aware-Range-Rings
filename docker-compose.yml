@@ -1,0 +1,65 @@
+# One replica. Do not scale this service: intermediate rasters share fixed
+# names inside a single process-wide work directory.
+#
+# Snapshots are not built by `up`. They are large (NLCD a few GB, NHD ~20 GB,
+# OSM ~19 GB) and the builders need write access, outbound network, and more
+# disk than a normal analysis. With the volumes empty, the page still loads
+# and an analysis runs on live elevation only, with land-cover, hydro, and
+# trail warnings in the results panel.
+#
+# Build a snapshot into the named volume (root so the files stay readable by
+# the runtime user):
+#   docker compose run --rm --user root wisar python tools/build_nlcd_cache.py
+#   docker compose run --rm --user root wisar python tools/build_hydro_cache.py
+#   docker compose run --rm --user root wisar python tools/build_osm_cache.py
+#
+# If the snapshots already exist on the host, replace the named volumes with
+# bind mounts (read-only is enough for the web process):
+#   - /var/wisar/cache/nlcd:/var/www/sar.weleber.net/cache/nlcd:ro
+#   - /var/wisar/cache/nhd:/var/www/sar.weleber.net/cache/nhd:ro
+#   - /var/wisar/cache/osm:/var/www/sar.weleber.net/cache/osm:ro
+#
+# A reverse proxy in front of this service must use a read timeout of at
+# least 600s, matching the Gunicorn timeout, or long analyses are cut off.
+
+services:
+  wisar:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CLOUDTAK_API_URL: ${CLOUDTAK_API_URL:-http://api:5000}
+      WISAR_CORS_ORIGINS: ${WISAR_CORS_ORIGINS:-}
+      WISAR_JOB_TTL_HOURS: ${WISAR_JOB_TTL_HOURS:-72}
+    volumes:
+      - wisar-cache-nlcd:/var/www/sar.weleber.net/cache/nlcd
+      - wisar-cache-nhd:/var/www/sar.weleber.net/cache/nhd
+      - wisar-cache-osm:/var/www/sar.weleber.net/cache/osm
+      - wisar-jobs:/var/wisar
+    networks:
+      - default
+      - cloudtak
+    mem_limit: 4g
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  wisar-cache-nlcd:
+  wisar-cache-nhd:
+  wisar-cache-osm:
+  wisar-jobs:
+
+# CloudTAK's compose network, so http://api:5000 resolves. The name is the
+# CloudTAK project network (docker network ls); override with CLOUDTAK_NETWORK.
+networks:
+  cloudtak:
+    external: true
+    name: ${CLOUDTAK_NETWORK:-cloudtak_default}

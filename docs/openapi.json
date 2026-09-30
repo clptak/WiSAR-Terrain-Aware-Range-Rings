@@ -1,0 +1,1795 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "WiSAR Terrain-Aware Range Rings API",
+    "version": "1.0.0-draft",
+    "summary": "Headless API for Terrain-Aware Range Rings (TARR) and travel-time isochrones.",
+    "description": "Computes Terrain-Aware Range Rings (Koester percentile envelopes) and travel-time isochrones from an Initial Planning Point (IPP) over an anisotropic cost surface (Tobler slope, NLCD land cover, OSM trails/roads, NHD hydrography). Intended client: CloudTAK plugins (Incident Manager, Search Containment).\n\n## Workflow (asynchronous request-reply)\n1. `POST /tarr/jobs` or `POST /travel-time/jobs` → `202 Accepted` with a `Location` header and a Job.\n2. Poll `GET /jobs/{job_id}` (honour `Retry-After`) until `status` is `succeeded` or `failed`.\n3. Fetch outputs from the links in `outputs`.\n\nJobs run one at a time, first in first out. An analysis takes roughly 15 s to several minutes.\n\n## Conventions\n- Coordinates: WGS84. Request bodies use named `lat`/`lon`; GeoJSON follows RFC 7946 (`[lon, lat]`).\n- Rasters: EPSG:4326 Cloud-Optimized GeoTIFF, DEFLATE, lossless, with overviews. Grid is capped at 1000×1000 cells, so large analyses have coarser cells; see `result.cell_size_m`.\n- Distances in kilometres unless a `unit` field says otherwise. Times in hours.\n- Errors: RFC 9457 `application/problem+json`.\n- Land cover and hydrography snapshots cover CONUS; outside it the analysis runs with warnings (see `result.warnings`).\n\n## Authentication\nSend the caller's CloudTAK token as `Authorization: Bearer <token>`. WiSAR verifies it with CloudTAK `GET /api/login` and caches the result briefly. `/health`, `/openapi.json` and `/docs` are public.\n\n## Retention\nFinished jobs and their outputs are deleted after `WISAR_JOB_TTL_HOURS` (default 72). `expires_at` gives the time. Copy anything you need to keep into the mission.\n\nThis tool is one input to search planning and does not replace the judgment of search planners or incident command.",
+    "license": {
+      "name": "GPL-3.0",
+      "identifier": "GPL-3.0-only"
+    }
+  },
+  "servers": [
+    {
+      "url": "{scheme}://{host}/api/v1",
+      "variables": {
+        "scheme": {
+          "default": "https",
+          "enum": [
+            "https",
+            "http"
+          ]
+        },
+        "host": {
+          "default": "wisar.example.org",
+          "description": "Hostname (and port) the WiSAR container is published at."
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "cloudtakBearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "System",
+      "description": "Health and service metadata."
+    },
+    {
+      "name": "Profiles",
+      "description": "Lost-person subject profile datasets used to resolve TARR distances."
+    },
+    {
+      "name": "TARR",
+      "description": "Terrain-Aware Range Rings at p25/p50/p75 find distances."
+    },
+    {
+      "name": "Travel Time",
+      "description": "Reachability isochrones at a flat-ground base speed."
+    },
+    {
+      "name": "Jobs",
+      "description": "Job status and lifecycle."
+    },
+    {
+      "name": "Outputs",
+      "description": "Files produced by a succeeded job."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getHealth",
+        "summary": "Service health",
+        "description": "Liveness, queue state and data snapshot freshness. No authentication.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profiles": {
+      "get": {
+        "tags": [
+          "Profiles"
+        ],
+        "operationId": "listProfiles",
+        "summary": "List profile datasets",
+        "description": "Every installed profile dataset with its categories, eco-region/terrain variants, p25/p50/p75 distances and calibration multipliers. Use this to populate subject pickers.",
+        "responses": {
+          "200": {
+            "description": "Datasets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileDatasetList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/tarr/jobs": {
+      "post": {
+        "tags": [
+          "TARR"
+        ],
+        "operationId": "createTarrJob",
+        "summary": "Start a TARR analysis",
+        "description": "Queues a TARR analysis. The subject is either a **listed** profile (the server resolves distances from the dataset and applies its calibration) or a **custom** profile with caller-supplied p25/p50/p75. Analysis radius is calibrated p75 + 2 km.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TarrJobRequest"
+              },
+              "examples": {
+                "listed": {
+                  "summary": "Listed Koester profile",
+                  "value": {
+                    "ipp": {
+                      "lat": 34.9523,
+                      "lon": -111.761
+                    },
+                    "dataset": "koester",
+                    "subject": {
+                      "kind": "listed",
+                      "category": "Hiker",
+                      "eco_region": "Dry",
+                      "terrain": "Mountainous"
+                    }
+                  }
+                },
+                "custom": {
+                  "summary": "Custom (unlisted) profile, miles, uncalibrated",
+                  "value": {
+                    "ipp": {
+                      "lat": 34.9523,
+                      "lon": -111.761
+                    },
+                    "subject": {
+                      "kind": "custom",
+                      "name": "AZ Hiker (local)",
+                      "distances": {
+                        "p25": 1.2,
+                        "p50": 2.4,
+                        "p75": 4.6,
+                        "unit": "mi"
+                      }
+                    },
+                    "calibration": "none"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/components/responses/JobAccepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/travel-time/jobs": {
+      "post": {
+        "tags": [
+          "Travel Time"
+        ],
+        "operationId": "createTravelTimeJob",
+        "summary": "Start a travel-time analysis",
+        "description": "Queues a travel-time (isochrone) analysis. Travel time per cell = cost-distance ÷ base speed. Analysis radius is max(`min_radius_m`, base speed × longest interval + 2 km).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TravelTimeJobRequest"
+              },
+              "examples": {
+                "default": {
+                  "value": {
+                    "ipp": {
+                      "lat": 34.9523,
+                      "lon": -111.761
+                    },
+                    "speed": {
+                      "value": 2.0,
+                      "unit": "mph"
+                    },
+                    "intervals_hours": [
+                      2,
+                      4,
+                      6,
+                      8,
+                      10,
+                      12
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "$ref": "#/components/responses/JobAccepted"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "listJobs",
+        "summary": "List my jobs",
+        "description": "Unexpired jobs created by the calling CloudTAK user, newest first.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/JobStatus"
+            },
+            "description": "Filter by status."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/JobType"
+            },
+            "description": "Filter by job type."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "jobs"
+                  ],
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Job"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/JobId"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "getJob",
+        "summary": "Get job status and results",
+        "description": "Any authenticated user holding the job id can read it, so a job can be shared within an incident.",
+        "responses": {
+          "200": {
+            "description": "The job.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Suggested seconds before polling again. Present while queued or running."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "deleteJob",
+        "summary": "Cancel or delete a job",
+        "description": "Removes a queued or finished job and its outputs. A running job cannot be interrupted (409).",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job is running.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/contours.geojson": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getContoursGeojson",
+        "summary": "Contours (GeoJSON)",
+        "description": "TARR percentile polygons or travel-time isochrones as an RFC 7946 FeatureCollection.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/geo+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContourCollection"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/contours.kml": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getContoursKml",
+        "summary": "Contours (KML)",
+        "description": "The same polygons as KML 2.2, styled with the contour colours.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.google-earth.kml+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/cost-distance.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getCostDistance",
+        "summary": "Cost-distance GeoTIFF",
+        "description": "Float32. Cumulative anisotropic travel cost from the IPP in flat-ground-equivalent metres. Travel hours = value ÷ (speed_kmh × 1000). NoData −9999.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/cost-surface.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getCostSurface",
+        "summary": "Cost surface GeoTIFF",
+        "description": "Float32. Per-cell friction multiplier (1.0 = trail/road). NoData −9999.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/attractor-score.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getAttractorScore",
+        "summary": "Terrain-attractor score GeoTIFF",
+        "description": "Float32, 0–1. Per-cell Jacobs (2015) terrain-attractor strength: max of stream-trail intersection 1.00, trail 0.55, low-elevation pocket 0.35, stream 0.28, high-elevation prominence 0.18. The web tool's heatmap as data. NoData −9999.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/probability.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getProbability",
+        "summary": "Percentile band GeoTIFF",
+        "description": "Float32 band class: 4 = inside p25, 3 = p25–p50, 2 = p50–p75, 1 = beyond p75, 0 = NoData. TARR jobs only; a travel-time job returns 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "operationId": "getOpenApi",
+        "summary": "This document",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cloudtakBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "CloudTAK user token, verified against CloudTAK GET /api/login."
+      }
+    },
+    "parameters": {
+      "JobId": {
+        "name": "job_id",
+        "in": "path",
+        "required": true,
+        "description": "Job id returned when the job was created.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "responses": {
+      "JobAccepted": {
+        "description": "Job queued.",
+        "headers": {
+          "Location": {
+            "schema": {
+              "type": "string",
+              "format": "uri-reference"
+            },
+            "description": "URL of the job."
+          },
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Suggested seconds before first poll."
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Job"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Body is not valid JSON or is not an object.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "Body failed validation. `errors` lists each field.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid CloudTAK token.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such job (or no such output for this job type).",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "Job expired and its outputs were deleted.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "AuthUnavailable": {
+        "description": "CloudTAK could not be reached to verify the token.",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Queue is full, or CloudTAK could not be reached to verify the token.",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem details.",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "errors": {
+            "type": "array",
+            "description": "Field-level validation errors (422 only).",
+            "items": {
+              "type": "object",
+              "required": [
+                "pointer",
+                "detail"
+              ],
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "description": "JSON Pointer into the request body, e.g. /subject/distances/p50."
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LatLon": {
+        "type": "object",
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        }
+      },
+      "JobType": {
+        "type": "string",
+        "enum": [
+          "tarr",
+          "travel_time"
+        ]
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed"
+        ]
+      },
+      "Distances": {
+        "type": "object",
+        "required": [
+          "p25",
+          "p50",
+          "p75"
+        ],
+        "additionalProperties": false,
+        "description": "Find distances; must be strictly increasing and positive.",
+        "properties": {
+          "p25": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "p50": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "p75": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "km",
+              "mi"
+            ],
+            "default": "km"
+          }
+        }
+      },
+      "ListedSubject": {
+        "type": "object",
+        "required": [
+          "kind",
+          "category"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "listed"
+          },
+          "category": {
+            "type": "string",
+            "description": "Category name from GET /profiles, e.g. \"Hiker\"."
+          },
+          "eco_region": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "e.g. Dry, Temperate, Urban. Null or omitted = default."
+          },
+          "terrain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "e.g. Mountainous, Flat. Null or omitted = default."
+          }
+        },
+        "description": "Resolved like the web tool: exact eco_region+terrain, else eco_region with default terrain, else the category default. `resolved.variant` in the Job shows which one was used."
+      },
+      "CustomSubject": {
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "distances"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "custom"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Label carried into outputs."
+          },
+          "distances": {
+            "$ref": "#/components/schemas/Distances"
+          }
+        }
+      },
+      "Calibration": {
+        "type": "string",
+        "enum": [
+          "auto",
+          "global",
+          "none"
+        ],
+        "default": "auto",
+        "description": "`auto`: listed subject gets the dataset's per-category multipliers (or the dataset default); custom subject gets none. `global`: apply the dataset default multipliers. `none`: use distances as given. The Job's `resolved` block always shows multipliers and final km."
+      },
+      "TarrJobRequest": {
+        "type": "object",
+        "required": [
+          "ipp",
+          "subject"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ipp": {
+            "$ref": "#/components/schemas/LatLon"
+          },
+          "dataset": {
+            "type": "string",
+            "default": "koester",
+            "description": "Dataset id from GET /profiles. Used for listed subjects and for `global` calibration."
+          },
+          "subject": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ListedSubject"
+              },
+              {
+                "$ref": "#/components/schemas/CustomSubject"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "listed": "#/components/schemas/ListedSubject",
+                "custom": "#/components/schemas/CustomSubject"
+              }
+            }
+          },
+          "calibration": {
+            "$ref": "#/components/schemas/Calibration"
+          }
+        }
+      },
+      "Speed": {
+        "type": "object",
+        "required": [
+          "value",
+          "unit"
+        ],
+        "additionalProperties": false,
+        "description": "Flat-ground base walking speed. Must be > 0 and ≤ 20 km/h (12.4 mph).",
+        "properties": {
+          "value": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "mph",
+              "kmh"
+            ]
+          }
+        }
+      },
+      "TravelTimeJobRequest": {
+        "type": "object",
+        "required": [
+          "ipp",
+          "speed",
+          "intervals_hours"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "ipp": {
+            "$ref": "#/components/schemas/LatLon"
+          },
+          "speed": {
+            "$ref": "#/components/schemas/Speed"
+          },
+          "intervals_hours": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 72
+            },
+            "description": "Isochrone times in hours. Sorted server-side."
+          },
+          "min_radius_m": {
+            "type": "number",
+            "minimum": 1000,
+            "default": 10000,
+            "description": "Minimum analysis radius. The server enlarges it to base speed × longest interval + 2 km."
+          }
+        }
+      },
+      "Multipliers": {
+        "type": "object",
+        "required": [
+          "m25",
+          "m50",
+          "m75"
+        ],
+        "properties": {
+          "m25": {
+            "type": "number"
+          },
+          "m50": {
+            "type": "number"
+          },
+          "m75": {
+            "type": "number"
+          }
+        }
+      },
+      "ResolvedTarr": {
+        "type": "object",
+        "description": "How the request was turned into thresholds.",
+        "required": [
+          "subject_label",
+          "source_distances_km",
+          "multipliers",
+          "final_distances_km",
+          "calibration_applied"
+        ],
+        "properties": {
+          "dataset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject_label": {
+            "type": "string",
+            "description": "e.g. \"Hiker (Dry, Mountainous)\" or the custom name."
+          },
+          "variant": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "eco_region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "terrain": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "source_distances_km": {
+            "$ref": "#/components/schemas/Distances"
+          },
+          "calibration_applied": {
+            "type": "string",
+            "enum": [
+              "category",
+              "dataset_default",
+              "global",
+              "none"
+            ]
+          },
+          "multipliers": {
+            "$ref": "#/components/schemas/Multipliers"
+          },
+          "final_distances_km": {
+            "$ref": "#/components/schemas/Distances"
+          },
+          "radius_km": {
+            "type": "number"
+          }
+        }
+      },
+      "ResolvedTravelTime": {
+        "type": "object",
+        "required": [
+          "speed_kmh",
+          "speed_mph",
+          "intervals_hours",
+          "radius_km"
+        ],
+        "properties": {
+          "speed_kmh": {
+            "type": "number"
+          },
+          "speed_mph": {
+            "type": "number"
+          },
+          "intervals_hours": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "radius_km": {
+            "type": "number",
+            "description": "Effective analysis radius."
+          }
+        }
+      },
+      "Warning": {
+        "type": "object",
+        "required": [
+          "severity",
+          "source",
+          "message"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "e.g. dem, nlcd, nhd, osm."
+          },
+          "message": {
+            "type": "string",
+            "description": "Plain-language note for the planner."
+          }
+        }
+      },
+      "Bounds": {
+        "type": "object",
+        "required": [
+          "west",
+          "south",
+          "east",
+          "north"
+        ],
+        "properties": {
+          "west": {
+            "type": "number"
+          },
+          "south": {
+            "type": "number"
+          },
+          "east": {
+            "type": "number"
+          },
+          "north": {
+            "type": "number"
+          }
+        }
+      },
+      "OutputLink": {
+        "type": "object",
+        "required": [
+          "href",
+          "media_type"
+        ],
+        "properties": {
+          "href": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer"
+          }
+        }
+      },
+      "JobResult": {
+        "type": "object",
+        "required": [
+          "bounds",
+          "crs",
+          "warnings"
+        ],
+        "properties": {
+          "bounds": {
+            "$ref": "#/components/schemas/Bounds"
+          },
+          "crs": {
+            "type": "string",
+            "const": "EPSG:4326"
+          },
+          "cell_size_m": {
+            "type": "number",
+            "description": "Approximate cell size. Above ~30 m means the 1000-cell cap coarsened the grid."
+          },
+          "grid": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              }
+            }
+          },
+          "contour_count": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Warning"
+            }
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "status",
+          "created_at",
+          "request",
+          "links"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "queue_position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "1 = next to run. Null unless queued."
+          },
+          "owner": {
+            "type": "string",
+            "description": "CloudTAK username (email) that created the job."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "request": {
+            "type": "object",
+            "description": "The request body as received."
+          },
+          "resolved": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ResolvedTarr"
+              },
+              {
+                "$ref": "#/components/schemas/ResolvedTravelTime"
+              }
+            ]
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outputs": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Present when succeeded. Keys are output names.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OutputLink"
+            },
+            "propertyNames": {
+              "enum": [
+                "contours.geojson",
+                "contours.kml",
+                "cost-distance.tif",
+                "cost-surface.tif",
+                "attractor-score.tif",
+                "probability.tif"
+              ]
+            }
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Problem"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present when failed."
+          },
+          "links": {
+            "type": "object",
+            "required": [
+              "self"
+            ],
+            "properties": {
+              "self": {
+                "type": "string",
+                "format": "uri-reference"
+              }
+            }
+          }
+        }
+      },
+      "ContourCollection": {
+        "type": "object",
+        "required": [
+          "type",
+          "features"
+        ],
+        "properties": {
+          "type": {
+            "const": "FeatureCollection"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContourFeature"
+            }
+          }
+        }
+      },
+      "ContourFeature": {
+        "type": "object",
+        "required": [
+          "type",
+          "geometry",
+          "properties"
+        ],
+        "properties": {
+          "type": {
+            "const": "Feature"
+          },
+          "geometry": {
+            "type": "object",
+            "description": "GeoJSON Polygon or MultiPolygon, [lon, lat], 5 decimal places.",
+            "properties": {
+              "type": {
+                "enum": [
+                  "Polygon",
+                  "MultiPolygon"
+                ]
+              },
+              "coordinates": {
+                "type": "array"
+              }
+            }
+          },
+          "properties": {
+            "type": "object",
+            "required": [
+              "callsign",
+              "remarks",
+              "color",
+              "threshold_m"
+            ],
+            "properties": {
+              "callsign": {
+                "type": "string",
+                "description": "Display name for TAK, e.g. \"25% Percentile TARR\" or \"4h\"."
+              },
+              "remarks": {
+                "type": "string",
+                "description": "e.g. \"Threshold: 2.41 km cost-distance\" or \"Travel time: 4h at flat-ground speed\"."
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "threshold_m": {
+                "type": "number",
+                "description": "Cost-distance threshold in metres."
+              },
+              "percentile": {
+                "type": "string",
+                "enum": [
+                  "25%",
+                  "50%",
+                  "75%"
+                ],
+                "description": "TARR only."
+              },
+              "hours": {
+                "type": "number",
+                "description": "Travel time only."
+              },
+              "label": {
+                "type": "string",
+                "description": "Travel time only, e.g. \"4h\"."
+              },
+              "label_lat": {
+                "type": "number"
+              },
+              "label_lng": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "ProfileVariant": {
+        "type": "object",
+        "required": [
+          "eco_region",
+          "terrain",
+          "distances_km"
+        ],
+        "properties": {
+          "eco_region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "terrain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "distances_km": {
+            "$ref": "#/components/schemas/Distances"
+          }
+        }
+      },
+      "ProfileCategory": {
+        "type": "object",
+        "required": [
+          "name",
+          "variants"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileVariant"
+            }
+          },
+          "calibration": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Multipliers"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Category-specific multipliers, or null to use the dataset default."
+          }
+        }
+      },
+      "ProfileDataset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "categories"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "examples": [
+              "koester"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "Citation for the distances."
+          },
+          "calibration_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default_calibration": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Multipliers"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCategory"
+            }
+          }
+        }
+      },
+      "ProfileDatasetList": {
+        "type": "object",
+        "required": [
+          "datasets",
+          "default_dataset"
+        ],
+        "properties": {
+          "default_dataset": {
+            "type": "string"
+          },
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileDataset"
+            }
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "queue": {
+            "type": "object",
+            "properties": {
+              "queued": {
+                "type": "integer"
+              },
+              "running": {
+                "type": "integer"
+              },
+              "max_queued": {
+                "type": "integer"
+              }
+            }
+          },
+          "snapshots": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "available": {
+                  "type": "boolean"
+                },
+                "age_days": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
