@@ -25,7 +25,7 @@ Given an IPP (the point where a lost person was last seen) and either a subject 
 - **Two analysis modes:** TARR Analysis (Koester-driven percentile envelope around an IPP) and Travel Time (reachability isochrones at a given travel speed).
 - **Jacobs-driven heatmap (optional layer):** within-envelope color reflects per-pixel terrain-attractor strength per Jacobs (2015), with stream-trail intersections rendering hottest (their strongest PDEN finding), trails next, then low-elevation pockets, streams, and high-elevation prominence. Renders at full opacity across the entire search area, including past the 75th percentile, where roughly 1-in-4 finds still occur. Off by default since v1.16; enable it from the Map Layers toggles.
 - **28 subject categories** from Lost Person Behavior (Koester 2008) with eco-region and terrain selectors.
-- **Per-band calibration** — profile-specific multipliers at each percentile threshold, validated against 360 historical subjects from 253 Coconino County missions.
+- **Per-band calibration** — profile-specific multipliers at each percentile threshold, validated against 362 historical subjects from 253 Coconino County missions, re-measured September 2026 on the current snapshot data sources.
 - **CalTopo write-back, any team:** push TARR contours or travel-time isochrones to a CalTopo map as named Shape features. Coconino County SAR uses the team's stored credentials by default; other teams enter their own CalTopo API credentials in the UI and the tool passes them through without storing.
 - **Predictable OSM data** — trails, roads, waterways, and power lines are read from a weekly-refreshed local snapshot covering all 50 states and DC, built from Geofabrik extracts. No dependency on public Overpass servers; the tool warns if the snapshot is more than 14 days old.
 - **KML and GeoJSON export** of TARR or travel-time contours for CalTopo, Google Earth, TAK/CloudTAK, QGIS, and Avenza.
@@ -39,9 +39,11 @@ The tool corrects this with per-band multipliers derived from Coconino County hi
 
 | Percentile | Nominal | Uncalibrated | Global per-band | Per-profile per-band |
 |-----------|---------|--------------|-----------------|----------------------|
-| 25th      | 25.0%   | 23.9%        | 27.9%           | 26.2%                |
-| 50th      | 50.0%   | 41.1%        | 52.5%           | 50.0%                |
-| 75th      | 75.0%   | 58.9%        | 76.8%           | 77.1%                |
+| 25th      | 25.0%   | 28.7%        | 28.7%           | 27.9%                |
+| 50th      | 50.0%   | 45.0%        | 52.2%           | 50.8%                |
+| 75th      | 75.0%   | 63.8%        | 77.6%           | 78.7%                |
+
+Re-measured September 30, 2026 against the current NLCD, NHDPlus HR and OSM snapshots (362 subjects; the April 2026 per-profile figures were 26.2% / 50.0% / 77.1%). The tool applies the per-profile per-band multipliers.
 
 Full validation details, including per-profile multiplier tables and per-profile containment rates, are available in the tool's Validation modal.
 
