@@ -23,6 +23,15 @@ Flask==3.1.3
 gunicorn==25.1.0
 requests==2.32.5
 
+# /api/v1 request validation against docs/openapi.json (pure Python except
+# rpds-py, which ships manylinux wheels for amd64 and arm64).
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+referencing==0.37.0
+rpds-py==0.30.0
+attrs==26.1.0
+typing-extensions==4.16.0
+
 # Geospatial core. rasterio reads/writes the DEM and cost rasters; shapely and
 # geopandas do the vector work; fiona and pyogrio are the OGR bindings.
 rasterio==1.5.0

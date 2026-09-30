@@ -1,2 +1,7 @@
 # CalTopo credentials for docker compose. See .env.example.
 .env
+
+# tests/api_smoke.sh downloads
+smoke-out/
+__pycache__/
+.pytest_cache/

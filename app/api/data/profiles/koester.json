@@ -1,0 +1,857 @@
+{
+  "id": "koester",
+  "name": "Lost Person Behavior (Koester 2008)",
+  "source": "Koester, R.J. (2008). Lost Person Behavior. dbS Productions. Via Ferguson (2013) IGT4SAR. Extracted verbatim from app/static/app.js LPB_DATA.",
+  "calibration_source": "Coconino County Sheriff's Office SAR, 360 subjects / 253 missions, per-band (app/static/app.js CALIBRATION_MULTIPLIERS).",
+  "default_calibration": {
+    "m25": 1.05,
+    "m50": 1.35,
+    "m75": 1.8
+  },
+  "categories": [
+    {
+      "name": "Abduction",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 2.41,
+            "p75": 19.31
+          }
+        }
+      ]
+    },
+    {
+      "name": "Aircraft",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.45,
+            "p75": 5.95
+          }
+        }
+      ]
+    },
+    {
+      "name": "Angler",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 1.45,
+            "p75": 5.47
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 1.61,
+            "p75": 5.47
+          }
+        },
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 3.22,
+            "p50": 9.66,
+            "p75": 10.46
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 1.61,
+            "p75": 5.47
+          }
+        }
+      ]
+    },
+    {
+      "name": "All Terrain Vehicle",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 3.22,
+            "p75": 5.63
+          }
+        }
+      ]
+    },
+    {
+      "name": "Autistic",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.97,
+            "p75": 3.86
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.61,
+            "p75": 3.7
+          }
+        }
+      ]
+    },
+    {
+      "name": "Camper",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.61,
+            "p75": 4.18
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 2.25,
+            "p75": 3.06
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 1.13,
+            "p75": 3.22
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child (1-3)",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.29,
+            "p75": 3.86
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.48,
+            "p75": 0.8
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.32,
+            "p75": 0.97
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.32,
+            "p75": 0.97
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child (4-6)",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.93,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.1,
+            "p50": 0.48,
+            "p75": 0.97
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.8,
+            "p75": 1.45
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.64,
+            "p75": 1.45
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child (7-9)",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 1.29,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.48,
+            "p75": 1.45
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 1.61,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 0.8,
+            "p75": 2.09
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child (10-12)",
+      "calibration": {
+        "m25": 0.65,
+        "m50": 1.55,
+        "m75": 1.5
+      },
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 2.09,
+            "p75": 7.24
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 1.45,
+            "p75": 2.9
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 1.61,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 1.61,
+            "p75": 4.83
+          }
+        }
+      ]
+    },
+    {
+      "name": "Child (13-15)",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 2.41,
+            "p50": 3.22,
+            "p75": 4.83
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 2.09,
+            "p75": 4.83
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.29,
+            "p75": 3.22
+          }
+        }
+      ]
+    },
+    {
+      "name": "Climber",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.16,
+            "p50": 1.61,
+            "p75": 3.22
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dementia",
+      "calibration": {
+        "m25": 2.5,
+        "m50": 2.55,
+        "m75": 2.5
+      },
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.97,
+            "p50": 1.93,
+            "p75": 3.06
+          }
+        },
+        {
+          "eco_region": "Dry",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 1.61,
+            "p75": 3.54
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 1.13,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.8,
+            "p75": 1.93
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.97,
+            "p75": 2.41
+          }
+        }
+      ]
+    },
+    {
+      "name": "Despondent",
+      "calibration": {
+        "m25": 0.55,
+        "m50": 1.0,
+        "m75": 1.65
+      },
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 1.61,
+            "p75": 3.38
+          }
+        },
+        {
+          "eco_region": "Dry",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 1.93,
+            "p75": 3.7
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.1,
+            "p50": 0.48,
+            "p75": 1.45
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 1.13,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.8,
+            "p75": 2.25
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gatherer",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 2.57,
+            "p75": 5.79
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.45,
+            "p50": 3.22,
+            "p75": 6.44
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hiker",
+      "calibration": {
+        "m25": 1.0,
+        "m50": 1.1,
+        "m75": 1.4
+      },
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 3.22,
+            "p75": 6.44
+          }
+        },
+        {
+          "eco_region": "Dry",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 1.29,
+            "p50": 2.09,
+            "p75": 6.6
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 1.13,
+            "p50": 3.06,
+            "p75": 5.79
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.77,
+            "p75": 3.22
+          }
+        }
+      ]
+    },
+    {
+      "name": "Horseback Rider",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 3.22,
+            "p75": 8.05
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hunter",
+      "calibration": {
+        "m25": 0.5,
+        "m50": 0.5,
+        "m75": 0.8
+      },
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 2.09,
+            "p50": 4.83,
+            "p75": 8.05
+          }
+        },
+        {
+          "eco_region": "Dry",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 3.06,
+            "p75": 6.44
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.97,
+            "p50": 2.09,
+            "p75": 4.83
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.61,
+            "p75": 3.06
+          }
+        }
+      ]
+    },
+    {
+      "name": "Intellectual Disability",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.13,
+            "p50": 4.02,
+            "p75": 8.69
+          }
+        },
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.8,
+            "p75": 3.7
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 1.61,
+            "p75": 3.22
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.97,
+            "p75": 2.09
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mental Illness",
+      "calibration": {
+        "m25": 0.95,
+        "m50": 4.05,
+        "m75": 3.2
+      },
+      "variants": [
+        {
+          "eco_region": "Urban",
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.32,
+            "p50": 0.64,
+            "p75": 1.45
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Mountainous",
+          "distances_km": {
+            "p25": 0.64,
+            "p50": 2.25,
+            "p75": 8.21
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.8,
+            "p50": 0.97,
+            "p75": 2.25
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mountain Biker",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 2.74,
+            "p50": 6.44,
+            "p75": 13.2
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 3.06,
+            "p50": 4.02,
+            "p75": 11.27
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extreme Sport",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 2.57,
+            "p75": 5.63
+          }
+        }
+      ]
+    },
+    {
+      "name": "Runner",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.45,
+            "p50": 2.57,
+            "p75": 3.38
+          }
+        }
+      ]
+    },
+    {
+      "name": "Skier (Alpine)",
+      "calibration": {
+        "m25": 1.2,
+        "m50": 1.9,
+        "m75": 2.15
+      },
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.13,
+            "p50": 2.74,
+            "p75": 4.83
+          }
+        }
+      ]
+    },
+    {
+      "name": "Skier (Nordic)",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.93,
+            "p50": 4.35,
+            "p75": 6.44
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 3.54,
+            "p75": 6.44
+          }
+        }
+      ]
+    },
+    {
+      "name": "Snowboarder",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 3.22,
+            "p75": 6.12
+          }
+        }
+      ]
+    },
+    {
+      "name": "Snowmobiler",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": "Dry",
+          "terrain": null,
+          "distances_km": {
+            "p25": 1.61,
+            "p50": 4.83,
+            "p75": 14.0
+          }
+        },
+        {
+          "eco_region": "Temperate",
+          "terrain": "Flat",
+          "distances_km": {
+            "p25": 1.29,
+            "p50": 4.67,
+            "p75": 41.04
+          }
+        },
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 3.22,
+            "p50": 6.44,
+            "p75": 11.1
+          }
+        }
+      ]
+    },
+    {
+      "name": "Substance Abuse",
+      "calibration": null,
+      "variants": [
+        {
+          "eco_region": null,
+          "terrain": null,
+          "distances_km": {
+            "p25": 0.48,
+            "p50": 1.13,
+            "p75": 4.18
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Test-only dependencies, on top of app/requirements.txt.
+pytest
+openapi-spec-validator

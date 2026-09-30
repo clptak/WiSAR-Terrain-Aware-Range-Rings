@@ -28,24 +28,30 @@ ENV GDAL_CONFIG=/usr/bin/gdal-config
 RUN pip install --no-cache-dir --only-binary=:all: --no-binary=fiona -r requirements.txt
 
 COPY app/ /opt/wisar/
+# The /api/v1 contract, served at /api/v1/openapi.json and used to validate requests.
+COPY docs/openapi.json /opt/wisar/api/openapi.json
 
 RUN useradd --create-home --uid 1000 wisar \
-    && mkdir -p /var/wisar \
+    && mkdir -p /var/wisar/jobs \
     && chown -R wisar:wisar /opt/wisar /var/wisar
 
 USER wisar
 
 EXPOSE 8000
 
-# One sync worker. WORK_DIR is created once per process and every analysis
-# writes the same filenames, so a second worker or thread overwrites a run
-# that is still in flight. Timeout covers a slow 3DEP fetch plus Dijkstra.
+# One worker process, several threads. Analyses never run in request threads:
+# api/jobs.py runs every analysis (v1 jobs and the wrapped legacy
+# /api/analyze* calls) on a single background thread, one at a time, because
+# the pipeline writes fixed filenames into one per-process WORK_DIR. The
+# extra threads only answer status polls, downloads and legacy callers
+# waiting their turn. Do not raise --workers: the queue is per process.
+# Timeout covers a legacy caller waiting behind queued analyses.
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "1", \
-     "--threads", "1", \
+     "--threads", "8", \
      "--timeout", "600", \
      "--graceful-timeout", "30", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "server:app"]
+     "wsgi:app"]

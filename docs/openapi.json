@@ -354,7 +354,7 @@
         ],
         "operationId": "deleteJob",
         "summary": "Cancel or delete a job",
-        "description": "Removes a queued or finished job and its outputs. A running job cannot be interrupted (409).",
+        "description": "Removes a queued or finished job and its outputs. Only the user who created the job may delete it. A running job cannot be interrupted (409).",
         "responses": {
           "204": {
             "description": "Deleted."
@@ -362,8 +362,21 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "description": "Caller did not create this job.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
           },
           "409": {
             "description": "Job is running.",
@@ -1287,6 +1300,10 @@
               "type": "number"
             }
           },
+          "min_radius_km": {
+            "type": "number",
+            "description": "min_radius_m from the request, in km."
+          },
           "radius_km": {
             "type": "number",
             "description": "Effective analysis radius."
@@ -1752,13 +1769,23 @@
             "enum": [
               "ok",
               "degraded"
-            ]
+            ],
+            "description": "degraded = a data snapshot is missing; analyses still run, with warnings."
           },
           "version": {
             "type": "string"
           },
+          "auth": {
+            "type": "string",
+            "enum": [
+              "cloudtak",
+              "none"
+            ],
+            "description": "none = WISAR_AUTH=none (local testing only)."
+          },
           "queue": {
             "type": "object",
+            "description": "queued counts every waiting analysis, including legacy /api/analyze* calls.",
             "properties": {
               "queued": {
                 "type": "integer"

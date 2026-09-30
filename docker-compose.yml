@@ -34,6 +34,8 @@ services:
       CLOUDTAK_API_URL: ${CLOUDTAK_API_URL:-http://api:5000}
       WISAR_CORS_ORIGINS: ${WISAR_CORS_ORIGINS:-}
       WISAR_JOB_TTL_HOURS: ${WISAR_JOB_TTL_HOURS:-72}
+      WISAR_MAX_QUEUED: ${WISAR_MAX_QUEUED:-10}
+      WISAR_AUTH: ${WISAR_AUTH:-cloudtak}
     volumes:
       - wisar-cache-nlcd:/var/www/sar.weleber.net/cache/nlcd
       - wisar-cache-nhd:/var/www/sar.weleber.net/cache/nhd
@@ -45,7 +47,7 @@ services:
     mem_limit: 4g
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
