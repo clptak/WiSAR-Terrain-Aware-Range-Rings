@@ -444,6 +444,105 @@ def test_authenticator_against_cloudtak_login():
     assert e.value.status == 401
 
 
+# ---- several CloudTAK deployments -------------------------------------------
+class _MultiSession:
+    """Fake CloudTAKs: {api_url: {token: email}}."""
+    def __init__(self, logins):
+        self.logins, self.calls = logins, []
+
+    def get(self, url, headers, timeout):
+        api = url[:-len('/api/login')]
+        self.calls.append(api)
+        email = self.logins.get(api, {}).get(headers['Authorization'][7:])
+        return _Resp(200, {'email': email, 'access': 'user'}) if email else _Resp(401)
+
+
+A, B = 'https://map.a.org', 'https://map.b.org'
+INSTANCES = f'{A}=http://cloudtak-api:5000, {B}'
+
+
+def test_parse_instances():
+    from api.config import parse_instances
+    assert parse_instances(INSTANCES) == [(A, 'http://cloudtak-api:5000'), (B, B)]
+    assert parse_instances('HTTPS://Map.A.org/=https://api.a.org/') == [(A, 'https://api.a.org')]
+    assert parse_instances('') == []
+    for bad in ('map.a.org', 'https://map.a.org/path', f'{A},{A}', f'{A}=ftp://x'):
+        with pytest.raises(RuntimeError):
+            parse_instances(bad)
+
+
+def _multi_app(make_app, logins):
+    from api.auth import Authenticator
+    from api.config import parse_instances
+    session = _MultiSession(logins)
+    app, ctx = make_app(auth_factory=lambda s: Authenticator(s, session=session),
+                        cloudtak_instances=parse_instances(INSTANCES), cors_origins=[])
+    return app.test_client(), ctx, session
+
+
+def test_origin_selects_the_cloudtak_that_verifies_the_token(make_app):
+    c, ctx, session = _multi_app(make_app, {'http://cloudtak-api:5000': {'ta': 'pat@x.org'}, B: {'tb': 'pat@x.org'}})
+    assert c.get('/api/v1/profiles', headers={'Authorization': 'Bearer ta', 'Origin': A}).status_code == 200
+    assert c.get('/api/v1/profiles', headers={'Authorization': 'Bearer tb', 'Origin': B}).status_code == 200
+    # a token is only good on the deployment that issued it
+    assert c.get('/api/v1/profiles', headers={'Authorization': 'Bearer ta', 'Origin': B}).status_code == 401
+    assert session.calls == ['http://cloudtak-api:5000', B, B]
+    # no Origin (curl, smoke test) and WiSAR's own pages use the first deployment
+    assert c.get('/api/v1/profiles', headers={'Authorization': 'Bearer ta'}).status_code == 200
+    own = {'Authorization': 'Bearer ta', 'Origin': 'https://localhost'}
+    assert c.get('/api/v1/profiles', headers=own, base_url='https://localhost').status_code == 200
+
+
+def test_unregistered_origin_is_403(make_app):
+    c, ctx, session = _multi_app(make_app, {B: {'tb': 'pat@x.org'}})
+    r = c.get('/api/v1/profiles', headers={'Authorization': 'Bearer tb', 'Origin': 'https://evil.example'})
+    assert r.status_code == 403 and r.json['title'] == 'CloudTAK not registered'
+    assert 'Access-Control-Allow-Origin' not in r.headers
+    assert session.calls == []
+    r = c.post('/api/analyze', json={}, headers={'Authorization': 'Bearer tb', 'Origin': 'https://evil.example'})
+    assert r.status_code == 403  # legacy routes too
+
+
+def test_registered_origins_get_cors(make_app):
+    c, ctx, _ = _multi_app(make_app, {})
+    for origin in (A, B):
+        r = c.open('/api/v1/profiles', method='OPTIONS', headers={'Origin': origin, 'Access-Control-Request-Method': 'GET'})
+        assert r.headers['Access-Control-Allow-Origin'] == origin
+
+
+def test_jobs_belong_to_user_and_deployment(make_app):
+    c, ctx, _ = _multi_app(make_app, {'http://cloudtak-api:5000': {'ta': 'pat@x.org'}, B: {'tb': 'pat@x.org'}})
+    ha = {'Authorization': 'Bearer ta', 'Origin': A}
+    hb = {'Authorization': 'Bearer tb', 'Origin': B}
+    ja = c.post('/api/v1/tarr/jobs', json=HIKER, headers=ha).json
+    jb = c.post('/api/v1/tarr/jobs', json=HIKER, headers=hb).json
+    assert (ja['owner'], ja['instance']) == ('pat@x.org', A)
+    assert (jb['owner'], jb['instance']) == ('pat@x.org', B)
+    assert [j['id'] for j in c.get('/api/v1/jobs', headers=ha).json['jobs']] == [ja['id']]
+    assert [j['id'] for j in c.get('/api/v1/jobs', headers=hb).json['jobs']] == [jb['id']]
+    wait_for(c, ja['id'], headers=ha)
+    wait_for(c, jb['id'], headers=hb)
+    assert c.delete(f"/api/v1/jobs/{ja['id']}", headers=hb).status_code == 403
+    assert c.delete(f"/api/v1/jobs/{ja['id']}", headers=ha).status_code == 204
+    assert ctx.spec.errors('Job', jb) == []
+
+
+def test_jobs_from_before_instances_belong_to_the_first_deployment(make_app):
+    c, ctx, _ = _multi_app(make_app, {'http://cloudtak-api:5000': {'ta': 'pat@x.org'}, B: {'tb': 'pat@x.org'}})
+    old = ctx.jobs.submit('tarr', {}, {}, 'pat@x.org')  # as stored before: no instance
+    ctx.jobs._jobs[old['id']].pop('instance', None)
+    ids = lambda h: [j['id'] for j in c.get('/api/v1/jobs', headers=h).json['jobs']]
+    assert old['id'] in ids({'Authorization': 'Bearer ta', 'Origin': A})
+    assert old['id'] not in ids({'Authorization': 'Bearer tb', 'Origin': B})
+
+
+def test_single_cloudtak_mode_is_unchanged(client):
+    j = client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE).json
+    assert j['instance'] is None
+    r = client.get('/api/v1/profiles', headers={**ALICE, 'Origin': 'https://anything.example'})
+    assert r.status_code == 200  # no origin check without WISAR_CLOUDTAK_INSTANCES
+
+
 # ---- responses match the published contract --------------------------------
 def test_responses_match_spec_schemas(client, fake_pipeline):
     spec = client.ctx.spec

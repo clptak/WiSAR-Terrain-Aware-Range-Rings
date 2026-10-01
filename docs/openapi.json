@@ -4,7 +4,7 @@
     "title": "WiSAR Terrain-Aware Range Rings API",
     "version": "1.0.0-draft",
     "summary": "Headless API for Terrain-Aware Range Rings (TARR) and travel-time isochrones.",
-    "description": "Computes Terrain-Aware Range Rings (Koester percentile envelopes) and travel-time isochrones from an Initial Planning Point (IPP) over an anisotropic cost surface (Tobler slope, NLCD land cover, OSM trails/roads, NHD hydrography). Intended client: CloudTAK plugins (Incident Manager, Search Containment).\n\n## Workflow (asynchronous request-reply)\n1. `POST /tarr/jobs` or `POST /travel-time/jobs` → `202 Accepted` with a `Location` header and a Job.\n2. Poll `GET /jobs/{job_id}` (honour `Retry-After`) until `status` is `succeeded` or `failed`.\n3. Fetch outputs from the links in `outputs`.\n\nJobs run one at a time, first in first out. An analysis takes roughly 15 s to several minutes.\n\n## Conventions\n- Coordinates: WGS84. Request bodies use named `lat`/`lon`; GeoJSON follows RFC 7946 (`[lon, lat]`).\n- Rasters: EPSG:4326 Cloud-Optimized GeoTIFF, DEFLATE, lossless, with overviews. Grid is capped at 1000×1000 cells, so large analyses have coarser cells; see `result.cell_size_m`.\n- Distances in kilometres unless a `unit` field says otherwise. Times in hours.\n- Errors: RFC 9457 `application/problem+json`.\n- Land cover and hydrography snapshots cover CONUS; outside it the analysis runs with warnings (see `result.warnings`).\n\n## Authentication\nSend the caller's CloudTAK token as `Authorization: Bearer <token>`. WiSAR verifies it with CloudTAK `GET /api/login` and caches the result briefly. `/health`, `/openapi.json` and `/docs` are public.\n\n## Retention\nFinished jobs and their outputs are deleted after `WISAR_JOB_TTL_HOURS` (default 72). `expires_at` gives the time. Copy anything you need to keep into the mission.\n\nThis tool is one input to search planning and does not replace the judgment of search planners or incident command.",
+    "description": "Computes Terrain-Aware Range Rings (Koester percentile envelopes) and travel-time isochrones from an Initial Planning Point (IPP) over an anisotropic cost surface (Tobler slope, NLCD land cover, OSM trails/roads, NHD hydrography). Intended client: CloudTAK plugins (Incident Manager, Search Containment).\n\n## Workflow (asynchronous request-reply)\n1. `POST /tarr/jobs` or `POST /travel-time/jobs` → `202 Accepted` with a `Location` header and a Job.\n2. Poll `GET /jobs/{job_id}` (honour `Retry-After`) until `status` is `succeeded` or `failed`.\n3. Fetch outputs from the links in `outputs`.\n\nJobs run one at a time, first in first out. An analysis takes roughly 15 s to several minutes.\n\n## Conventions\n- Coordinates: WGS84. Request bodies use named `lat`/`lon`; GeoJSON follows RFC 7946 (`[lon, lat]`).\n- Rasters: EPSG:4326 Cloud-Optimized GeoTIFF, DEFLATE, lossless, with overviews. Grid is capped at 1000×1000 cells, so large analyses have coarser cells; see `result.cell_size_m`.\n- Distances in kilometres unless a `unit` field says otherwise. Times in hours.\n- Errors: RFC 9457 `application/problem+json`.\n- Land cover and hydrography snapshots cover CONUS; outside it the analysis runs with warnings (see `result.warnings`).\n\n## Authentication\nSend the caller's CloudTAK token as `Authorization: Bearer <token>`. WiSAR verifies it with CloudTAK `GET /api/login` and caches the result briefly. One WiSAR can serve several CloudTAK deployments: the browser's `Origin` header selects the deployment whose `/api/login` verifies the token, and an unregistered origin gets `403`. Requests without an `Origin` use the first registered deployment. Jobs belong to the user on that deployment. `/health`, `/openapi.json` and `/docs` are public.\n\n## Retention\nFinished jobs and their outputs are deleted after `WISAR_JOB_TTL_HOURS` (default 72). `expires_at` gives the time. Copy anything you need to keep into the mission.\n\nThis tool is one input to search planning and does not replace the judgment of search planners or incident command.",
     "license": {
       "name": "GPL-3.0",
       "identifier": "GPL-3.0-only"
@@ -109,6 +109,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "503": {
             "$ref": "#/components/responses/AuthUnavailable"
           }
@@ -165,6 +168,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
           },
           "404": {
             "description": "No section with that id.",
@@ -255,6 +261,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
           },
@@ -313,6 +322,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
           },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
@@ -374,6 +386,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "503": {
             "$ref": "#/components/responses/AuthUnavailable"
           }
@@ -415,6 +430,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -441,7 +459,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Caller did not create this job.",
+            "description": "Caller did not create this job (same user on the same CloudTAK deployment), or the request's Origin is not a registered CloudTAK deployment.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -512,6 +530,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -574,6 +595,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -638,6 +662,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -700,6 +727,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -764,6 +794,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -827,6 +860,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -877,7 +913,7 @@
       "cloudtakBearer": {
         "type": "http",
         "scheme": "bearer",
-        "description": "CloudTAK user token, verified against CloudTAK GET /api/login."
+        "description": "CloudTAK user token, verified against GET /api/login on the CloudTAK deployment the request comes from (its Origin), or on the single configured CloudTAK."
       }
     },
     "parameters": {
@@ -987,6 +1023,16 @@
             }
           }
         },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotRegistered": {
+        "description": "The request's Origin is not a CloudTAK deployment this WiSAR serves (WISAR_CLOUDTAK_INSTANCES).",
         "content": {
           "application/problem+json": {
             "schema": {
@@ -1527,6 +1573,13 @@
           "owner": {
             "type": "string",
             "description": "CloudTAK username (email) that created the job."
+          },
+          "instance": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Web origin of the CloudTAK deployment the owner signed in to (WISAR_CLOUDTAK_INSTANCES). Null when WiSAR serves a single CloudTAK. Jobs are listed and deleted per owner and deployment."
           },
           "created_at": {
             "type": "string",

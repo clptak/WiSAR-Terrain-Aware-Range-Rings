@@ -23,7 +23,8 @@ def _ctx():
 def _authenticate():
     if request.method == 'OPTIONS' or request.endpoint in PUBLIC:
         return None
-    g.user = _ctx().auth.verify(request.headers.get('Authorization'))
+    g.user = _ctx().auth.verify(request.headers.get('Authorization'),
+                                request.headers.get('Origin'), request.host)
     return None
 
 
@@ -76,7 +77,7 @@ def create_tarr_job():
     body = _json_body()
     _validate('TarrJobRequest', body)
     resolved = ctx.profiles.resolve(body)
-    return _accepted(ctx.jobs.submit('tarr', body, resolved, g.user['email']))
+    return _accepted(ctx.jobs.submit('tarr', body, resolved, g.user['email'], g.user['instance']))
 
 
 @bp.post('/travel-time/jobs')
@@ -94,7 +95,7 @@ def create_travel_time_job():
                 'intervals_hours': intervals, 'min_radius_km': min_radius_km,
                 # Same rule as pipeline.run_isochrone_analysis.
                 'radius_km': round(max(min_radius_km, kmh * max(intervals) + 2.0), 3)}
-    return _accepted(ctx.jobs.submit('travel_time', body, resolved, g.user['email']))
+    return _accepted(ctx.jobs.submit('travel_time', body, resolved, g.user['email'], g.user['instance']))
 
 
 # ---- jobs ------------------------------------------------------------------
@@ -108,7 +109,7 @@ def list_jobs():
         errors.append({'pointer': '/type', 'detail': 'unknown type'})
     if errors:
         raise ApiProblem(422, 'Unprocessable request', 'Invalid query parameters.', errors=errors)
-    jobs = _ctx().jobs.list_for(g.user['email'], status or None, jtype or None)
+    jobs = _ctx().jobs.list_for(g.user['email'], g.user['instance'], status or None, jtype or None)
     return jsonify({'jobs': [_view(j) for j in jobs]})
 
 
@@ -123,7 +124,7 @@ def get_job(job_id):
 
 @bp.delete('/jobs/<job_id>')
 def delete_job(job_id):
-    _ctx().jobs.delete(job_id, g.user['email'])
+    _ctx().jobs.delete(job_id, g.user['email'], g.user['instance'])
     return '', 204
 
 

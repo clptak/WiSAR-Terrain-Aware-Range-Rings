@@ -46,6 +46,34 @@ Rasters are EPSG:4326 Cloud-Optimized GeoTIFFs, DEFLATE, lossless, NoData
 To add a dataset, drop another `<id>.json` in `app/api/data/profiles/` with
 the same shape as `koester.json`. It appears in `GET /profiles` on restart.
 
+## Several CloudTAK deployments
+
+One WiSAR can serve more than one CloudTAK. List them in
+`WISAR_CLOUDTAK_INSTANCES` as `<web origin>=<API base URL>` pairs separated by
+commas, or just the web origin when CloudTAK's API is on the same origin:
+
+```
+WISAR_CLOUDTAK_INSTANCES=https://map.a.org=http://cloudtak-api:5000,https://map.b.org
+```
+
+- The browser's `Origin` header picks the CloudTAK whose `GET /api/login`
+  checks the token. A token is only accepted by the deployment that issued it.
+- An origin that isn't listed gets `403 CloudTAK not registered`.
+- Requests without an `Origin` (curl, `api_smoke.sh`) and WiSAR's own Swagger
+  UI use the first entry.
+- Every listed origin is allowed for CORS; `WISAR_CORS_ORIGINS` is still read
+  and added to them.
+- Jobs belong to the user on their deployment: the same email on two
+  deployments sees only its own jobs. Jobs carry `instance` (the origin).
+  Jobs created before this setting existed belong to the first entry.
+- All deployments share one queue (`WISAR_MAX_QUEUED`) and run one analysis
+  at a time.
+- A forged `Origin` from a non-browser client gains nothing: the token must
+  still be valid on the deployment it names.
+
+Without the setting, `CLOUDTAK_API_URL` verifies every token and `instance`
+is `null`, as before.
+
 ## Reference content
 
 `GET /api/v1/content/{id}` returns one section of the web tool's reference
@@ -76,7 +104,8 @@ back as `failed` with the title `Interrupted`.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CLOUDTAK_API_URL` | `http://api:5000` | Where WiSAR reaches CloudTAK to verify tokens |
+| `CLOUDTAK_API_URL` | `http://api:5000` | Where WiSAR reaches CloudTAK to verify tokens (single-CloudTAK mode) |
+| `WISAR_CLOUDTAK_INSTANCES` | *(empty)* | Several CloudTAK deployments sharing this WiSAR; see below. Replaces `CLOUDTAK_API_URL` when set |
 | `WISAR_CORS_ORIGINS` | *(empty)* | Comma-separated browser origins allowed to call `/api` |
 | `WISAR_JOB_TTL_HOURS` | `72` | Retention of finished jobs |
 | `WISAR_MAX_QUEUED` | `10` | Queue limit for v1 jobs |

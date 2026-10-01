@@ -26,7 +26,7 @@ def wrap_legacy(app, ctx):
         @functools.wraps(fn)
         def inner(*args, **kwargs):
             try:
-                ctx.auth.verify(request.headers.get('Authorization'))
+                ctx.auth.verify(request.headers.get('Authorization'), request.headers.get('Origin'), request.host)
             except ApiProblem as p:
                 resp = jsonify({'status': 'error', 'message': p.detail or p.title})
                 resp.status_code = p.status

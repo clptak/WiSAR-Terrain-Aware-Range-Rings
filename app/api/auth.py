@@ -4,16 +4,26 @@ WiSAR forwards the caller's bearer token to CloudTAK GET /api/login, which
 answers {email, access} for a valid token. Nothing is stored except a short
 in-memory cache keyed by a hash of the token. WISAR_AUTH=none skips the check
 (owner 'anonymous') and is meant only for local testing.
+
+Several CloudTAK deployments can share one WiSAR (WISAR_CLOUDTAK_INSTANCES).
+The browser's Origin header picks the deployment whose /api/login verifies
+the token; an unregistered Origin is refused. Requests without an Origin, or
+from WiSAR's own pages (Swagger UI), use the first registered deployment.
+A forged Origin gains nothing: the token must still be valid on the
+deployment it names. Without WISAR_CLOUDTAK_INSTANCES, CLOUDTAK_API_URL
+verifies every token, as before.
 """
 import hashlib
 import threading
 import time
+from urllib.parse import urlsplit
 
 import requests
 
+from .config import normalize_origin
 from .problems import ApiProblem
 
-ANONYMOUS = {'email': 'anonymous', 'access': 'none'}
+ANONYMOUS = {'email': 'anonymous', 'access': 'none', 'instance': ''}
 
 
 class Authenticator:
@@ -23,28 +33,51 @@ class Authenticator:
         self._cache = {}
         self._lock = threading.Lock()
 
-    def verify(self, authorization_header):
+    def instance_for(self, origin=None, host=None):
+        """(instance key, CloudTAK API base URL) for a request.
+
+        origin: the request's Origin header; host: its Host header (to
+        recognise WiSAR's own pages)."""
+        instances = self.settings.cloudtak_instances
+        if not instances:
+            return '', self.settings.cloudtak_api_url
+        if origin and urlsplit(origin).netloc.lower() != (host or '').lower():
+            try:
+                key = normalize_origin(origin)
+            except ValueError:
+                key = None
+            for inst_origin, api in instances:
+                if inst_origin == key:
+                    return inst_origin, api
+            raise ApiProblem(403, 'CloudTAK not registered',
+                             f'{origin} is not a CloudTAK deployment this WiSAR serves '
+                             '(WISAR_CLOUDTAK_INSTANCES).')
+        return instances[0]
+
+    def verify(self, authorization_header, origin=None, host=None):
         if self.settings.auth_mode == 'none':
             return dict(ANONYMOUS)
         token = _bearer(authorization_header)
         if not token:
             raise ApiProblem(401, 'Unauthorized', 'Send the CloudTAK token as "Authorization: Bearer <token>".',
                              headers={'WWW-Authenticate': 'Bearer'})
-        key = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        instance, api_url = self.instance_for(origin, host)
+        key = hashlib.sha256(f'{instance}\n{token}'.encode('utf-8')).hexdigest()
         now = time.monotonic()
         with self._lock:
             hit = self._cache.get(key)
             if hit and hit[0] > now:
                 return dict(hit[1])
-        user = self._ask_cloudtak(token)
+        user = self._ask_cloudtak(token, api_url)
+        user['instance'] = instance
         with self._lock:
             if len(self._cache) > 1000:
                 self._cache = {k: v for k, v in self._cache.items() if v[0] > now}
             self._cache[key] = (now + self.settings.auth_cache_seconds, user)
         return dict(user)
 
-    def _ask_cloudtak(self, token):
-        url = f'{self.settings.cloudtak_api_url}/api/login'
+    def _ask_cloudtak(self, token, api_url):
+        url = f'{api_url}/api/login'
         try:
             resp = self.session.get(url, headers={'Authorization': f'Bearer {token}',
                                                   'Accept': 'application/json'}, timeout=15)

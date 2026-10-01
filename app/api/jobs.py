@@ -87,9 +87,10 @@ class JobManager:
         self.sweep()
 
     # ---- submission ------------------------------------------------------
-    def submit(self, job_type, request_body, resolved, owner):
+    def submit(self, job_type, request_body, resolved, owner, instance=''):
         now = utcnow()
         job = {'id': str(uuid.uuid4()), 'type': job_type, 'status': 'queued', 'owner': owner,
+               'instance': instance or self.settings.default_instance or None,
                'created_at': iso(now), 'started_at': None, 'finished_at': None, 'expires_at': None,
                'request': request_body, 'resolved': resolved, 'result': None, 'outputs': None, 'error': None}
         with self._cv:
@@ -127,9 +128,15 @@ class JobManager:
             view['queue_position'] = self._position(job_id)
             return view
 
-    def list_for(self, owner, status=None, job_type=None):
+    def _owned_by(self, job, owner, instance):
+        # Jobs from before multi-instance support have no instance; they
+        # belong to the default deployment.
+        default = self.settings.default_instance
+        return job['owner'] == owner and (job.get('instance') or default) == (instance or default)
+
+    def list_for(self, owner, instance='', status=None, job_type=None):
         with self._cv:
-            jobs = [j for j in self._jobs.values() if j['owner'] == owner
+            jobs = [j for j in self._jobs.values() if self._owned_by(j, owner, instance)
                     and (status is None or j['status'] == status)
                     and (job_type is None or j['type'] == job_type)]
             jobs.sort(key=lambda j: j['created_at'], reverse=True)
@@ -156,13 +163,13 @@ class JobManager:
         return None
 
     # ---- deletion --------------------------------------------------------
-    def delete(self, job_id, requester):
+    def delete(self, job_id, requester, instance=''):
         with self._cv:
             job = self._jobs.get(job_id)
             if job is None:
                 raise ApiProblem(410 if job_id in self._expired else 404,
                                  'Gone' if job_id in self._expired else 'Not found')
-            if job['owner'] != requester:
+            if not self._owned_by(job, requester, instance):
                 raise ApiProblem(403, 'Forbidden', 'Only the user who created a job can delete it.')
             if job['status'] == 'running':
                 raise ApiProblem(409, 'Job is running', 'A running job cannot be interrupted; delete it after it finishes.')

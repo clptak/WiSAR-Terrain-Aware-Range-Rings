@@ -101,11 +101,11 @@ class FakeAuth:
         self.users = {'alice-token': {'email': 'alice@example.org', 'access': 'user'},
                       'bob-token': {'email': 'bob@example.org', 'access': 'user'}}
 
-    def verify(self, header):
+    def verify(self, header, origin=None, host=None):
         token = (header or '').replace('Bearer ', '')
         if token not in self.users:
             raise self.ApiProblem(401, 'Unauthorized', 'bad token')
-        return dict(self.users[token])
+        return {**self.users[token], 'instance': ''}
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def fake_pipeline(tmp_path, monkeypatch):
 def make_app(tmp_path, fake_pipeline):
     created = []
 
-    def _make(**overrides):
+    def _make(auth_factory=None, **overrides):
         import importlib
         import flask
         import server
@@ -134,7 +134,7 @@ def make_app(tmp_path, fake_pipeline):
                      sweep_interval_seconds=3600)
         for k, v in overrides.items():
             setattr(s, k, v)
-        ctx = init_api(server.app, settings=s, auth=FakeAuth())
+        ctx = init_api(server.app, settings=s, auth=auth_factory(s) if auth_factory else FakeAuth())
         server.app.config['TESTING'] = True
         created.append(ctx)
         return server.app, ctx
