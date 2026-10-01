@@ -4,19 +4,68 @@ import urllib.parse
 import urllib.error
 import json
 import os
-import threading
+import re
+import secrets
 import traceback
 import base64
 import hmac as hmac_mod
 import hashlib
 import time
+from datetime import datetime, timezone
 
 app = Flask(__name__, static_folder='static')
-analyses = {}
-analysis_lock = threading.Lock()
 
-RESULTS_DIR = '/tmp/wisar_results'
-os.makedirs(RESULTS_DIR, exist_ok=True)
+APP_VERSION = '1.18'
+
+# ============================================================
+# The analysis store
+# ------------------------------------------------------------
+# Every analysis gets its own directory under RUNS_DIR, named by its
+# analysis_id, holding the rasters the pipeline wrote, contours.geojson
+# and manifest.json (inputs, settings, data-source versions, timings).
+#
+# Before v1.18 rasters went to one mkdtemp directory per gunicorn worker
+# with fixed file names, so the next analysis handled by the same worker
+# overwrote the previous one's rasters while the previous record still
+# pointed at them (its downloads then served the wrong raster under the
+# right name), and the records themselves sat in /tmp keyed by rounded
+# coordinates, so two analyses from one IPP replaced each other.
+#
+# RUNS_DIR sits beside app/ and cache/, outside the rsync --delete tree,
+# so a deploy cannot touch it. tools/prune_runs.py removes rasters after
+# a retention window; manifests and contours are kept, and the nightly
+# backup carries them (weleber-server-config/scripts/weleber-backup).
+# ============================================================
+RUNS_DIR = os.environ.get('WISAR_RUNS_DIR', '/var/www/sar.weleber.net/runs')
+try:
+    os.makedirs(RUNS_DIR, exist_ok=True)
+    _probe = os.path.join(RUNS_DIR, '.write-test')
+    with open(_probe, 'w') as _f:
+        _f.write('ok')
+    os.remove(_probe)
+except OSError as _e:
+    # Refuse to start rather than fall back to /tmp: a silent fallback is
+    # exactly the failure this store exists to end, and a service that
+    # does not start fails the deploy's health check loudly.
+    raise SystemExit(f"ERROR: analysis store {RUNS_DIR} is not writable ({_e}). "
+                     f"Set WISAR_RUNS_DIR to a writable directory.")
+
+# analysis_id doubles as a directory name and a URL segment; anything
+# outside this set is answered 404 before it reaches the filesystem.
+ANALYSIS_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$')
+
+# Raster keys in a pipeline result -> file name inside the run directory.
+RASTER_FILES = {
+    'dem_path': 'dem.tif',
+    'nlcd_path': 'nlcd.tif',
+    'cost_surface_path': 'cost_surface.tif',
+    'cost_distance_path': 'cost_distance.tif',
+    'probability_path': 'probability.tif',
+    'jacobs_masks_path': 'jacobs_masks.tif',
+}
+MANIFEST_NAME = 'manifest.json'
+CONTOURS_NAME = 'contours.geojson'
+FAILED_NAME = 'failed.json'
 
 # ============================================================
 # CalTopo API write credentials (CCSO-SAR service account)
@@ -127,25 +176,207 @@ def caltopo_api_request(method, endpoint, payload, account_id, credential_id, cr
         else:
             return {'status': 'ok', 'result': {}}
 
-def save_result(analysis_id, result):
-    path = os.path.join(RESULTS_DIR, analysis_id + '.json')
-    with open(path, 'w') as f:
-        json.dump(result, f)
-    with analysis_lock:
-        analyses[analysis_id] = result
+def utc_now_iso():
+    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def clean_label(value):
+    """Optional incident label from the request: whitespace-normalised, capped."""
+    return ' '.join(str(value or '').split())[:120]
+
+
+def new_analysis_id(mode, lat, lng):
+    """Unique, sortable, readable id: time, mode, IPP, random suffix.
+
+    The suffix makes the id unguessable, so a link to an analysis is the
+    credential for opening it (the site has no login), and two analyses
+    started in the same second from the same IPP get separate directories.
+    """
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    return f"{stamp}_{mode}_{lat:.4f}_{lng:.4f}_{secrets.token_hex(4)}"
+
+
+def run_dir(analysis_id):
+    """Directory for an analysis_id, or None if the id is malformed."""
+    if not analysis_id or not ANALYSIS_ID_RE.match(analysis_id):
+        return None
+    return os.path.join(RUNS_DIR, analysis_id)
+
+
+def write_json_atomic(path, obj):
+    """Write via a temp file and rename, so a reader never sees a partial file."""
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(obj, f, indent=1)
+    os.replace(tmp, path)
+
+
+def snapshot_versions(warnings):
+    """Which data-source versions produced this run, for the manifest.
+
+    A re-run later is not the same analysis: the OSM snapshot changes
+    weekly, NHD quarterly, NLCD yearly, and the DEM may have come from the
+    staged tiles instead of the ImageServer. Recording this is what lets
+    a result be explained after the fact.
+    """
+    from pipeline import osm_cache, nlcd_cache, nhd_cache
+    out = {}
+    for name, mod in (('osm', osm_cache), ('nlcd', nlcd_cache), ('nhd', nhd_cache)):
+        try:
+            meta = mod.read_cache_metadata() if mod.cache_is_available() else {}
+        except Exception:
+            meta = {}
+        out[name] = {k: meta[k] for k in ('built_at', 'year', 'source') if k in meta}
+    dem_fallback = any(w.get('source') == 'dem' and w.get('severity') == 'info'
+                       for w in warnings or [])
+    out['dem'] = 'usgs_staged_tiles' if dem_fallback else '3dep_imageserver'
+    return out
+
+
+def raster_summary(path):
+    """Bounds and grid of the raster every other output derives from."""
+    import rasterio
+    with rasterio.open(path) as src:
+        b = src.bounds
+        t = src.transform
+        return ({'west': b.left, 'south': b.bottom, 'east': b.right, 'north': b.top},
+                {'width': src.width, 'height': src.height,
+                 'cell_m': round(abs(t.e) * 110540, 1)})
+
+
+def save_result(analysis_id, result, mode, request_data, label, started_at, extra):
+    """Write contours.geojson and manifest.json into the run directory.
+
+    `result` is the pipeline's return dict (absolute raster paths, contour
+    GeoJSON, warnings, timings). The manifest records file names relative
+    to its directory, so the store can be moved or restored elsewhere.
+    `extra` carries the mode-specific fields (percentiles, profile, or
+    isochrone_params) and the IPP as floats.
+    """
+    d = run_dir(analysis_id)
+    bounds, grid = raster_summary(result['cost_distance_path'])
+    files = {}
+    for key, name in RASTER_FILES.items():
+        p = result.get(key)
+        if p and os.path.exists(p):
+            files[key[:-5]] = name          # 'dem_path' -> 'dem'
+    contours = result.get('contour_geojson') or {'type': 'FeatureCollection', 'features': []}
+    write_json_atomic(os.path.join(d, CONTOURS_NAME), contours)
+    manifest = {
+        'schema': 1,
+        'analysis_id': analysis_id,
+        'created_utc': started_at,
+        'completed_utc': utc_now_iso(),
+        'app_version': APP_VERSION,
+        'mode': mode,
+        'label': label,
+        # The request as the browser sent it: calibrated percentiles, the
+        # raw Koester values and multipliers behind them, profile, speed...
+        'request': request_data,
+        'radius_km': result.get('radius_km'),
+        'bbox': list(result.get('bbox') or []),
+        'bounds': bounds,
+        'grid': grid,
+        'warnings': result.get('warnings', []),
+        'sources': snapshot_versions(result.get('warnings')),
+        'timings_s': result.get('timings_s', {}),
+        'files': files,
+        'contours': CONTOURS_NAME,
+        'contour_count': len(contours.get('features', [])),
+    }
+    manifest.update(extra)
+    write_json_atomic(os.path.join(d, MANIFEST_NAME), manifest)
+    return manifest
+
+
+def record_failure(analysis_id, mode, request_data, label, started_at, error):
+    """Leave failed.json in the run directory so a failed run is explainable."""
+    d = run_dir(analysis_id)
+    if not d:
+        return
+    try:
+        os.makedirs(d, exist_ok=True)
+        write_json_atomic(os.path.join(d, FAILED_NAME), {
+            'analysis_id': analysis_id,
+            'created_utc': started_at,
+            'failed_utc': utc_now_iso(),
+            'app_version': APP_VERSION,
+            'mode': mode,
+            'label': label,
+            'request': request_data,
+            'error': str(error),
+            'traceback': traceback.format_exc(),
+        })
+    except Exception as e:
+        print(f"  WARNING: could not record failure for {analysis_id}: {e}")
+
 
 def load_result(analysis_id):
-    with analysis_lock:
-        if analysis_id in analyses:
-            return analyses[analysis_id]
-    path = os.path.join(RESULTS_DIR, analysis_id + '.json')
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            result = json.load(f)
-        with analysis_lock:
-            analyses[analysis_id] = result
-        return result
-    return None
+    """Read a run back from its manifest.
+
+    Returns a dict shaped like the pipeline result the PNG and download
+    routes consume (absolute `*_path` keys, `contour_geojson`,
+    `percentiles`, `isochrone_params`), plus every manifest field. None if
+    the id is malformed or the run does not exist. A pruned raster leaves
+    its `*_path` pointing at a missing file; the routes check existence.
+    """
+    d = run_dir(analysis_id)
+    if not d or not os.path.isfile(os.path.join(d, MANIFEST_NAME)):
+        return None
+    with open(os.path.join(d, MANIFEST_NAME)) as f:
+        manifest = json.load(f)
+    result = dict(manifest)
+    files = manifest.get('files', {})
+    for key, name in RASTER_FILES.items():
+        result[key] = os.path.join(d, name) if key[:-5] in files else None
+    result['contours_path'] = os.path.join(d, manifest.get('contours', CONTOURS_NAME))
+    result['manifest_path'] = os.path.join(d, MANIFEST_NAME)
+    result['contour_geojson'] = None
+    if os.path.isfile(result['contours_path']):
+        with open(result['contours_path']) as f:
+            result['contour_geojson'] = json.load(f)
+    return result
+
+
+def result_response(analysis_id, result):
+    """The JSON both analyze endpoints and GET /api/analyses/<id> return.
+
+    One shape for a fresh run and a reopened one, so the front end renders
+    both through the same code. `available` says which rasters still exist
+    (prune_runs.py removes them after the retention window) so the UI can
+    hide downloads and layers that would 404.
+    """
+    available = {k[:-5]: bool(result.get(k) and os.path.exists(result[k]))
+                 for k in RASTER_FILES}
+    body = {
+        'status': 'ok',
+        'analysis_id': analysis_id,
+        'mode': result.get('mode'),
+        'created_utc': result.get('created_utc'),
+        'label': result.get('label', ''),
+        'ipp': result.get('ipp'),
+        'request': result.get('request'),
+        'has_percentiles': bool(result.get('has_percentiles')),
+        'percentiles': result.get('percentiles'),
+        'profile': result.get('profile'),
+        'isochrone_params': result.get('isochrone_params'),
+        # Kept for response compatibility; the server applies no calibration.
+        'calibration': None,
+        'contour_geojson': result.get('contour_geojson'),
+        'warnings': result.get('warnings', []),
+        'bounds': result.get('bounds'),
+        'sources': result.get('sources'),
+        'timings_s': result.get('timings_s'),
+        'available': available,
+        'cost_surface_url': f'/api/results/{analysis_id}/cost_surface.png',
+        'terrain_url': f'/api/results/{analysis_id}/terrain.png',
+        'cost_distance_url': f'/api/results/{analysis_id}/cost_distance.tif',
+        'contours_url': f'/api/results/{analysis_id}/contours.geojson',
+        'manifest_url': f'/api/results/{analysis_id}/manifest.json',
+    }
+    if result.get('mode') == 'tarr':
+        body['percentiles_url'] = f'/api/results/{analysis_id}/percentiles.png'
+    return body
 
 @app.route('/')
 def index():
@@ -153,6 +384,10 @@ def index():
 
 @app.route('/api/analyze', methods=['POST'])
 def run_analysis_endpoint():
+    analysis_id = None
+    data = None
+    label = ''
+    started_at = utc_now_iso()
     try:
         data = request.get_json()
         if not data:
@@ -186,34 +421,33 @@ def run_analysis_endpoint():
         # Radius auto-computed from calibrated p75 + 2 km padding, ensuring the
         # bounding box fully contains all three TARR contours.
         radius_km = p75 + 2.0
+        label = clean_label(data.get('label'))
+        analysis_id = new_analysis_id('tarr', ipp_lat, ipp_lng)
+        work_dir = run_dir(analysis_id)
+        os.makedirs(work_dir)
         from pipeline import run_analysis
+        t0 = time.time()
         result = run_analysis(ipp_lat=ipp_lat, ipp_lng=ipp_lng,
             pct_25_km=p25, pct_50_km=p50, pct_75_km=p75,
-            radius_km=radius_km)
-        analysis_id = f"{ipp_lat:.4f}_{ipp_lng:.4f}"
-        # Store percentiles in result for PNG renderer
-        result['percentiles'] = {'p25': p25, 'p50': p50, 'p75': p75}
-        save_result(analysis_id, result)
-        import rasterio
-        with rasterio.open(result['probability_path']) as src:
-            bounds = src.bounds
-        contour_geojson = result.get('contour_geojson', None)
-        # Data-source warnings (e.g., OSM snapshot missing, stale, or not
-        # covering the area). Default to empty list so the frontend can
-        # always iterate over it without a null check.
-        warnings = result.get('warnings', [])
-        return jsonify({'status':'ok','analysis_id':analysis_id,
-            'has_percentiles':has_percentiles,
-            # Kept for response compatibility; the server applies no calibration.
-            'calibration': None,
-            'contour_geojson':contour_geojson,
-            'warnings':warnings,
-            'bounds':{'west':bounds.left,'south':bounds.bottom,'east':bounds.right,'north':bounds.top},
-            'cost_surface_url':f'/api/results/{analysis_id}/cost_surface.png',
-            'percentiles_url':f'/api/results/{analysis_id}/percentiles.png',
-            'cost_distance_url':f'/api/results/{analysis_id}/cost_distance.tif'})
+            radius_km=radius_km, work_dir=work_dir)
+        result.setdefault('timings_s', {})['total'] = round(time.time() - t0, 2)
+        save_result(analysis_id, result, 'tarr', data, label, started_at, {
+            'ipp': {'lat': ipp_lat, 'lng': ipp_lng},
+            'has_percentiles': has_percentiles,
+            'profile': profile_name,
+            # Only real thresholds are recorded: the 1/2/3 km placeholders
+            # that size a percentile-less run are not values anyone chose.
+            'percentiles': {'p25': p25, 'p50': p50, 'p75': p75} if has_percentiles else None,
+        })
+        print(f"  Saved analysis {analysis_id} in {result['timings_s']['total']} s")
+        # Build the response from the manifest just written, exactly as a
+        # later GET /api/analyses/<id> will, so the round trip is exercised
+        # on every run.
+        return jsonify(result_response(analysis_id, load_result(analysis_id)))
     except Exception as e:
         traceback.print_exc()
+        if analysis_id:
+            record_failure(analysis_id, 'tarr', data, label, started_at, e)
         return jsonify({'status':'error','message':str(e)}), 500
 
 
@@ -237,6 +471,10 @@ def run_analysis_endpoint():
 # ============================================================
 @app.route('/api/analyze-isochrone', methods=['POST'])
 def run_isochrone_endpoint():
+    analysis_id = None
+    data = None
+    label = ''
+    started_at = utc_now_iso()
     try:
         data = request.get_json()
         if not data:
@@ -280,63 +518,76 @@ def run_isochrone_endpoint():
         radius_km = float(data.get('radius', 10000)) / 1000
 
         # --- Run the isochrone pipeline ---
+        label = clean_label(data.get('label'))
+        analysis_id = new_analysis_id('iso', ipp_lat, ipp_lng)
+        work_dir = run_dir(analysis_id)
+        os.makedirs(work_dir)
         from pipeline import run_isochrone_analysis
+        t0 = time.time()
         result = run_isochrone_analysis(
             ipp_lat=ipp_lat, ipp_lng=ipp_lng,
             base_speed_kmh=base_speed_kmh,
             time_intervals_hours=time_intervals,
-            radius_km=radius_km
+            radius_km=radius_km,
+            work_dir=work_dir,
         )
-
-        # Store result for subsequent tile/file requests using the same
-        # analysis_id pattern as the TARR endpoint
-        analysis_id = f"iso_{ipp_lat:.4f}_{ipp_lng:.4f}"
-        result['isochrone_params'] = {
-            'base_speed_kmh': round(base_speed_kmh, 4),
-            'base_speed_mph': round(base_speed_kmh / 1.609344, 2),
-            'intervals': time_intervals,
-        }
-        save_result(analysis_id, result)
-
-        # Read bounds from the cost-distance raster for map fitting
-        import rasterio
-        with rasterio.open(result['cost_distance_path']) as src:
-            bounds = src.bounds
-
-        contour_geojson = result.get('contour_geojson', None)
-        warnings = result.get('warnings', [])
-
-        return jsonify({
-            'status': 'ok',
-            'analysis_id': analysis_id,
-            'mode': 'isochrone',
-            'isochrone_params': result['isochrone_params'],
-            'contour_geojson': contour_geojson,
-            'warnings': warnings,
-            'bounds': {
-                'west': bounds.left, 'south': bounds.bottom,
-                'east': bounds.right, 'north': bounds.top
+        result.setdefault('timings_s', {})['total'] = round(time.time() - t0, 2)
+        save_result(analysis_id, result, 'isochrone', data, label, started_at, {
+            'ipp': {'lat': ipp_lat, 'lng': ipp_lng},
+            'isochrone_params': {
+                'base_speed_kmh': round(base_speed_kmh, 4),
+                'base_speed_mph': round(base_speed_kmh / 1.609344, 2),
+                'intervals': time_intervals,
             },
-            # Cost surface PNG is still useful for visual inspection
-            'cost_surface_url': f'/api/results/{analysis_id}/cost_surface.png',
-            'cost_distance_url': f'/api/results/{analysis_id}/cost_distance.tif',
         })
+        print(f"  Saved analysis {analysis_id} in {result['timings_s']['total']} s")
+        return jsonify(result_response(analysis_id, load_result(analysis_id)))
     except Exception as e:
         traceback.print_exc()
+        if analysis_id:
+            record_failure(analysis_id, 'isochrone', data, label, started_at, e)
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/analyses/<analysis_id>')
+def get_analysis(analysis_id):
+    """Reopen a saved analysis: the same JSON the analyze endpoints return.
+
+    There is deliberately no list endpoint. The site has no login, and a
+    public list of IPPs would show where searches are happening. The id's
+    random suffix makes a link the credential for opening a result, and
+    the browser keeps its own list of recent analyses.
+    """
+    result = load_result(analysis_id)
+    if not result:
+        return jsonify({'status': 'error', 'message': 'Analysis not found'}), 404
+    return jsonify(result_response(analysis_id, result))
+
 
 @app.route('/api/results/<analysis_id>/<filename>')
 def serve_result(analysis_id, filename):
+    """Download one file of a run. The URL names are frozen for the front end.
+
+    The saved file name carries the analysis_id, so downloads from two
+    analyses do not land on a planner's disk as identical cost_distance.tif.
+    """
     result = load_result(analysis_id)
     if not result:
         return jsonify({'status':'error','message':'Analysis not found'}), 404
-    file_map = {'probability.tif':result.get('probability_path'),
-        'cost_distance.tif':result.get('cost_distance_path'),
-        'cost_surface.tif':result.get('cost_surface_path'),'dem.tif':result.get('dem_path')}
-    filepath = file_map.get(filename)
+    file_map = {
+        'probability.tif': (result.get('probability_path'), 'image/tiff'),
+        'cost_distance.tif': (result.get('cost_distance_path'), 'image/tiff'),
+        'cost_surface.tif': (result.get('cost_surface_path'), 'image/tiff'),
+        'dem.tif': (result.get('dem_path'), 'image/tiff'),
+        'contours.geojson': (result.get('contours_path'), 'application/geo+json'),
+        'manifest.json': (result.get('manifest_path'), 'application/json'),
+    }
+    filepath, mimetype = file_map.get(filename, (None, None))
     if not filepath or not os.path.exists(filepath):
         return jsonify({'status':'error','message':'File not found'}), 404
-    return send_file(filepath, mimetype='image/tiff', as_attachment=True, download_name=filename)
+    stem, ext = os.path.splitext(filename)
+    return send_file(filepath, mimetype=mimetype, as_attachment=True,
+                     download_name=f'{stem}_{analysis_id}{ext}')
 
 # ===============================================================================
 # Jacobs (2015) terrain-attractor rendering

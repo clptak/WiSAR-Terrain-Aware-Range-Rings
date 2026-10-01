@@ -29,17 +29,23 @@ with an 8-second message rotator; it is not real progress. The long gunicorn and
 nginx timeouts that make this work are configured **only on the server**, so any
 timeout change there can silently break the app.
 
-**`WORK_DIR` is created once per process, not per run** (`pipeline/shared.py`),
-despite a comment claiming otherwise. Intermediate rasters have fixed names
-(`dem.tif`, `cost_surface.tif`, `cost_distance.tif`, `jacobs_masks.tif`). **Two
-concurrent analyses in one worker overwrite each other.** There is no queue and
-no job id in the filenames.
+**Every analysis writes to its own directory**,
+`/var/www/sar.weleber.net/runs/<analysis_id>/` (`WISAR_RUNS_DIR` overrides
+it; the server refuses to start if it cannot write there). `server.py`
+creates the directory and passes it to the orchestrators as `work_dir`;
+`WORK_DIR` in `pipeline/shared.py` is only the default for one-shot
+scripts. Until v1.18 rasters went to one `mkdtemp` directory per gunicorn
+worker with fixed names, so the next analysis on a worker overwrote the
+previous one's rasters while the previous record still pointed at them,
+and its downloads then served the wrong raster under the right name. Keep
+the per-run directory; see "The analysis store" below.
 
-**`analysis_id` is just the rounded coordinates** — `f"{lat:.4f}_{lng:.4f}"`.
-Two users starting from the same IPP collide and overwrite each other's results.
-The `analyses` dict is global and never evicts, and `/tmp/wisar_results/*.json`
-is never cleaned; after a restart those JSONs still reference the old process's
-raster paths.
+**`analysis_id` is `<UTC stamp>_<tarr|iso>_<lat>_<lng>_<8 hex>`.** The random
+suffix is deliberate: the site has no login and no list endpoint, so the
+link is the credential for reopening a result (`GET /api/analyses/<id>`
+returns the same JSON the analyze endpoints do). Ids are checked against
+`ANALYSIS_ID_RE` before they touch the filesystem. Do not add a list
+endpoint without authentication: it would publish where searches happen.
 
 ## Code that looks wrong and is not — do not "clean up"
 
@@ -142,6 +148,38 @@ stack is tightly coupled — rasterio, geopandas, pyogrio and fiona all bind the
 same GDAL — so upgrade the set together on a rebuilt venv and run a real
 analysis before deploying. System packages (`gdal-bin`, `libgdal-dev`,
 `python3-gdal`, `libspatialindex-dev`) come from `provision.sh` phase 10.
+
+## The analysis store
+
+`runs/` sits beside `app/` and `cache/`, outside the rsync `--delete` tree,
+owned by `jamie` like the service. Each run directory holds
+`manifest.json` (the request as posted including raw Koester values and
+multipliers, profile, mode, radius, bbox, grid and cell size, warnings,
+snapshot `built_at` stamps, which DEM source answered, per-step timings,
+the file list), `contours.geojson`, and the six rasters (5–17 MB in all).
+A run that raised leaves `failed.json` with the error and traceback. JSON
+is written atomically. The analyze endpoints build their response by
+reading the manifest back, so the round trip is exercised on every run.
+
+**Retention.** `tools/prune_runs.py` deletes rasters older than 180 days
+and never touches `manifest.json`, `contours.geojson` or `failed.json`;
+directories that never got a record are removed after a day. Monthly cron
+in `weleber-server-config/cron/jamie.crontab`; the path is hardcoded in
+the tool and in `server.py`, change both. The nightly backup
+(`weleber-server-config/scripts/weleber-backup`) carries manifests and
+contours only. They are the irreplaceable record of what a planner was
+shown, and a re-run later is not the same analysis because the snapshots
+move. The response's `available` map says which rasters still exist; a
+reopened run past the window shows contours and settings and says so.
+
+**Front end.** After every run `app.js` puts `?analysis=<id>` in the URL,
+shows the link in Analysis Results, and records the run in a per-browser
+list (`localStorage`, `wisar_saved_analyses_v1`). Opening a link restores
+the IPP, profile and raw percentiles, or speed and intervals, then draws
+the result through the same `renderTarrResult` / `renderIsoResult` the
+fresh run uses. The optional Incident Label is stored in the manifest and
+used in download file names; it is not added to the frozen CalTopo
+descriptions.
 
 ## The local snapshots
 

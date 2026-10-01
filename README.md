@@ -71,8 +71,24 @@ app/
     ├── build_osm_cache.py    Weekly OSM cache builder (memory-bounded Arrow streaming)
     ├── build_nlcd_cache.py   Yearly NLCD snapshot installer
     ├── build_hydro_cache.py  Quarterly NHDPlus HR snapshot builder (ogr2ogr streaming)
-    └── compare_sources.py    Live-vs-snapshot regression check for one IPP
+    ├── compare_sources.py    Live-vs-snapshot regression check for one IPP
+    └── prune_runs.py         Analysis-store retention: rasters 180 days, manifests and contours kept
 ```
+
+## Saved analyses
+
+Every analysis is stored on the server in its own directory under
+`/var/www/sar.weleber.net/runs/<analysis_id>/`: the rasters, the contour
+polygons (`contours.geojson`), and `manifest.json` with the inputs as
+posted, the calibration multipliers, the versions of the OSM, NLCD and NHD
+snapshots used, which elevation source answered, and per-step timings.
+The id is `<UTC stamp>_<tarr|iso>_<lat>_<lng>_<random>`; the random suffix
+makes the link to an analysis the credential for reopening it, since the
+tool has no login. `GET /api/analyses/<id>` returns the same JSON as the
+analyze endpoints, and `/?analysis=<id>` reopens the result in the UI on
+any device. The browser keeps its own list of analyses it has run or
+opened. Rasters are removed after 180 days by `tools/prune_runs.py`;
+manifests and contours are kept and backed up nightly.
 
 ## Data sources
 

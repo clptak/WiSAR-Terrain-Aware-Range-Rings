@@ -16,7 +16,7 @@
      
      Author:  Jamie F. Weleber
      Created: March 2026
-     Version: 1.17
+     Version: 1.18
      ============================================================ -->
 <html lang="en">
 <!-- ============================================================
@@ -461,6 +461,14 @@
             <h2 style="text-align:center;font-size:22px;color:#ffca00;margin-bottom:4px;">Changelog</h2>
             <p style="text-align:center;font-size:14px;color:var(--text-muted);margin-bottom:24px;">WiSAR Decision Support Tool / SAR TARR Tool</p>
             <div style="margin-bottom:24px;">
+    			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.18 &#8212; October 1, 2026</h3>
+    			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
+        			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Saved analyses:</span> Every analysis is now stored on the server under its own unique id, with its settings (IPP, profile, Koester distances and calibration multipliers, or speed and intervals), the versions of the elevation, land cover, hydrography and OpenStreetMap data it used, step timings, and the contour polygons. The Analysis Results panel shows a link that reopens the analysis on any device, with the IPP, profile and contours restored; a refresh no longer loses the result. A new Saved Analyses section lists the analyses run or opened in this browser. An optional Incident Label can be entered with the IPP; it is stored with the analysis and used in download file names.</p>
+        			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Results could previously be lost or mixed up:</span> Until this release results lived in temporary storage that a server reboot cleared, keyed only by the rounded IPP coordinates, so two analyses from the same point replaced each other. Worse, the rasters of consecutive analyses handled by the same server process shared file names, so an earlier analysis's download links could return a later analysis's raster under the earlier name, and the Percentile Contours image could draw one analysis's thresholds over another's cost-distance grid. Each analysis now has its own directory and nothing is overwritten. Downloaded GeoTIFFs, KML and GeoJSON files carry the incident label or analysis id in their names. CalTopo exports are unchanged.</p>
+        			<p style="margin-bottom:0;"><span style="color:var(--text-primary);font-weight:600;">Retention:</span> Contours and settings are kept indefinitely and backed up nightly. Rasters (elevation, land cover, cost surface, cost-distance, probability, attractor masks) are removed 180 days after the analysis; a reopened analysis older than that shows its contours and settings and says that the rasters are gone.</p>
+    			</div>
+    		</div>
+            <div style="margin-bottom:24px;">
     			<h3 style="font-size:15px;color:#ffca00;margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">v1.17 &#8212; September 30, 2026</h3>
     			<div style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
         			<p style="margin-bottom:6px;"><span style="color:var(--text-primary);font-weight:600;">Land cover and hydrography from local snapshots:</span> The MRLC land cover WMS and the USGS hydro MapServer had become the pipeline's bottleneck &mdash; up to 120&nbsp;s and 180&nbsp;s of timeouts per analysis since August &mdash; and a timed-out layer was silently dropped from the friction surface. Both are now read from snapshots on the server: Annual NLCD 2024 for CONUS (refreshed yearly) and USGS NHDPlus High Resolution for every basin in the country (refreshed quarterly). USGS 3DEP elevation is the only live request left. Typical analysis time drops from minutes to well under a minute.</p>
@@ -739,6 +747,7 @@
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Slope function</td><td style="padding:5px 0;">Tobler's Hiking Function (1993), directional per-edge</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Distance</td><td style="padding:5px 0;">3D surface distance with cross-slope penalty</td></tr>
                     <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">POA distribution</td><td style="padding:5px 0;">Log-normal fit from user percentiles</td></tr>
+                    <tr style="border-bottom:1px solid var(--border);"><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Saved analyses</td><td style="padding:5px 0;">Each analysis is stored on the server under a unique id with its settings, the data-source versions it used, and its contour polygons, and reopens from the link shown in Analysis Results. Rasters are kept 180 days; contours and settings indefinitely, with a nightly off-site backup.</td></tr>
                     <tr><td style="padding:5px 0;font-weight:600;color:var(--text-primary);">Server</td><td style="padding:5px 0;">Ubuntu 24.04, Python 3.12, Flask, Gunicorn, Nginx</td></tr>
                 </table>
             </div>
@@ -775,7 +784,7 @@
                 <p style="font-size:13px;color:var(--text-secondary);">Jamie Weleber, Coconino County Sheriff's Search &amp; Rescue<br><a href="https://sar.weleber.net" style="color:var(--accent);">https://sar.weleber.net</a></p>
             </div>
 
-            <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 30, 2026 | Version 1.17</p>
+            <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:16px;">Metadata Date: September 30, 2026 | Version 1.18</p>
 
             <div style="text-align:center;">
                 <button onclick="document.getElementById('metadataModal').classList.add('hidden');" style="padding:10px 32px;background:var(--accent);color:white;border:none;border-radius:6px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;">Close</button>
@@ -1226,6 +1235,11 @@
                         </div>
                         <input type="hidden" id="ippInput2" />
                     </div>
+                    <div class="input-group" style="margin-top:16px;margin-bottom:0;">
+                        <label>Incident Label <span style="text-transform:none;letter-spacing:0;font-weight:400;">(optional)</span></label>
+                        <input type="text" id="incidentLabel" maxlength="120" placeholder="e.g. 26-0412 Humphreys Trail" autocomplete="off" />
+                        <div class="input-hint">Saved with the analysis, shown in the Saved Analyses list and used in download file names. Visible to anyone who has the analysis link.</div>
+                    </div>
                     <div class="status-bar" id="ippStatusBar"><div class="status-dot"></div><span id="ippStatusText"></span></div>
                 </div>
             </div>
@@ -1339,6 +1353,18 @@
                          area) — populated by app.js when the pipeline degraded. Placed inside accAnalysis so
                          warnings appear alongside results and follow accAnalysis's expand/collapse
                          behavior (the section auto-expands after analysis completes). -->
+                    <!-- Saved-analysis link (v1.18). Every run is stored on the server;
+                         this row shows the link that reopens it on any device. app.js
+                         fills it in afterAnalysisLoaded(). -->
+                    <div id="analysisLinkRow" class="hidden" style="margin-top:4px;margin-bottom:12px;padding:10px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;">
+                        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Saved analysis</div>
+                        <div id="analysisLinkMeta" style="font-size:13px;color:var(--text-primary);margin-bottom:8px;line-height:1.4;"></div>
+                        <div style="display:flex;gap:6px;">
+                            <input type="text" id="analysisLinkInput" readonly onclick="this.select()" style="flex:1;min-width:0;font-size:12px;padding:6px 8px;background:var(--bg-field);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:inherit;" />
+                            <button id="copyLinkBtn" onclick="copyAnalysisLink()" style="padding:6px 10px;background:var(--bg-field);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Copy link</button>
+                        </div>
+                        <div class="input-hint" style="margin-top:6px;">Anyone with this link can reopen the analysis on any device. Contours and settings are kept indefinitely; rasters are removed after 180 days.</div>
+                    </div>
                     <div class="data-warnings" id="analysisDataWarnings"></div>
                     <div class="data-warnings" id="isoDataWarnings"></div>
                     <div id="layerToggles" class="hidden" style="padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;">
@@ -1351,6 +1377,7 @@
                             <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="pctToggle" checked onchange="if(this.checked){contourLayer.addTo(map);}else{map.removeLayer(contourLayer);}"> Percentile Contours (TARRs)</label>
                             <label style="display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="terrainToggle" onchange="if(this.checked){window.terrainOverlay.addTo(map);}else{map.removeLayer(window.terrainOverlay);}"> Terrain Difficulty</label>
                             <div id="downloadSection" class="hidden" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);">
+                                <div id="prunedNote" style="display:none;font-size:12px;color:var(--warning);margin-bottom:8px;line-height:1.4;">This analysis is older than the 180-day raster retention window, so its rasters and heatmap have been removed. The contours and settings are kept and are shown here.</div>
                                 <div style="font-size:12px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Download Images</div>
                                 <a id="dlCostPng" href="#" download="terrain_attractor_priority.png" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Terrain Attractor Priority (PNG)</a>
                                 <a id="dlTerrainPng" href="#" download="terrain_difficulty.png" style="display:block;font-size:13px;color:var(--accent);text-decoration:none;margin-bottom:6px;">Terrain Difficulty (PNG)</a>
@@ -1387,6 +1414,30 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ======== SECTION 6: Saved Analyses (v1.18) ========
+                 Analyses run or opened in this browser (localStorage). The
+                 server keeps every run under its analysis_id; there is no
+                 server-side list because the site has no login and a list
+                 of IPPs would show where searches are happening. data-aux
+                 keeps this section out of the mobile status strip's idea of
+                 "the next workflow step". ======== -->
+            <div class="acc-section band-dark collapsed" id="accHistory" data-aux="1">
+                <div class="acc-header" onclick="toggleSection('accHistory')">
+                    <div class="acc-header-left">
+                        <div class="acc-status-dot" id="accHistoryStatus"></div>
+                        <span class="acc-title">Saved Analyses</span>
+                        <span class="acc-summary" id="accHistorySummary"></span>
+                    </div>
+                    <svg class="acc-chevron" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="acc-body">
+                    <div class="input-hint" style="margin-bottom:10px;">Every analysis is saved on the server and reopens from its link on any device. Listed here: the ones run or opened in this browser.</div>
+                    <div id="historyEmpty" class="input-hint" style="text-align:center;padding:12px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;">No analyses yet.</div>
+                    <div id="historyList"></div>
+                    <button id="historyClearBtn" onclick="clearHistory()" style="display:none;margin-top:6px;padding:4px 10px;background:var(--bg-field);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-family:inherit;font-size:12px;cursor:pointer;">Clear this list</button>
                 </div>
             </div>
 
@@ -1746,7 +1797,7 @@
                 // Find all visible accordion sections (skip .hidden ones —
                 // mode switching uses .hidden to swap section visibility)
                 var sections=Array.from(document.querySelectorAll('.acc-section'))
-                    .filter(function(s){return !s.classList.contains('hidden')});
+                    .filter(function(s){return !s.classList.contains('hidden')&&!s.hasAttribute('data-aux')});
 
                 var target=null;
                 var dotState='';
