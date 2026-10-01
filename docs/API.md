@@ -46,6 +46,22 @@ Rasters are EPSG:4326 Cloud-Optimized GeoTIFFs, DEFLATE, lossless, NoData
 To add a dataset, drop another `<id>.json` in `app/api/data/profiles/` with
 the same shape as `koester.json`. It appears in `GET /profiles` on restart.
 
+## Reference content
+
+`GET /api/v1/content/{id}` returns one section of the web tool's reference
+text so a plugin can show it in a modal: `metadata`, `changelog`,
+`validation`, `tarr-explainer`, `travel-time-explainer` and `scope-note` (the
+note under the mode choice on the start screen).
+
+The sections are read from `app/static/index.html` when requested, so they
+follow upstream edits to that page; the page itself is not served. Each one
+is the modal's inner HTML with its Close / Got it button, scripts, form
+controls and inline event handlers removed. The inline styles use the page's
+CSS variables, and `css_variables` gives their values; the colours were
+chosen for a dark background. Responses carry an `ETag` (send it back in
+`If-None-Match` for a `304`). If upstream renames a modal, that section
+returns `503` until `ITEMS` in `app/api/content.py` is updated.
+
 ## Queue and retention
 
 One analysis runs at a time, first in first out, including the legacy
@@ -66,6 +82,7 @@ back as `failed` with the title `Interrupted`.
 | `WISAR_MAX_QUEUED` | `10` | Queue limit for v1 jobs |
 | `WISAR_AUTH` | `cloudtak` | `none` disables authentication. Local testing only. |
 | `WISAR_JOBS_DIR` | `/var/wisar/jobs` | Job records and outputs (the `wisar-jobs` volume) |
+| `WISAR_CONTENT_HTML` | `static/index.html` in the app | Web tool page the reference content is read from |
 
 ## Testing
 

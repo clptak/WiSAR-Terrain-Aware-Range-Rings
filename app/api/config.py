@@ -29,6 +29,7 @@ class Settings:
     profiles_dir: str = os.path.join(HERE, 'data', 'profiles')
     default_dataset: str = 'koester'
     openapi_path: str = ''
+    content_html: str = os.path.join(HERE, '..', 'static', 'index.html')
     sweep_interval_seconds: int = 300
     start_worker: bool = True
 
@@ -46,6 +47,7 @@ class Settings:
             profiles_dir=env('WISAR_PROFILES_DIR', os.path.join(HERE, 'data', 'profiles')),
             default_dataset=env('WISAR_DEFAULT_DATASET', 'koester'),
             openapi_path=_find_spec(),
+            content_html=env('WISAR_CONTENT_HTML', os.path.join(HERE, '..', 'static', 'index.html')),
         )
 
     def validate(self):

@@ -11,6 +11,7 @@ from werkzeug.exceptions import HTTPException
 
 from .auth import Authenticator
 from .config import Settings
+from .content import ContentStore
 from .jobs import JobManager
 from .legacy import wrap_legacy
 from .problems import ApiProblem, problem_response
@@ -36,6 +37,7 @@ def init_api(app, settings=None, executor=None, auth=None):
         settings=settings,
         spec=Spec(settings.openapi_path),
         profiles=ProfileStore(settings.profiles_dir, settings.default_dataset),
+        content=ContentStore(settings.content_html),
         auth=auth or Authenticator(settings),
         jobs=JobManager(settings, executor or run_job),
     )

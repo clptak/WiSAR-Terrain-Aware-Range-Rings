@@ -59,6 +59,16 @@ def profiles():
     return jsonify(_ctx().profiles.listing())
 
 
+# ---- reference content -----------------------------------------------------
+@bp.get('/content/<content_id>')
+def content(content_id):
+    digest, item = _ctx().content.get(content_id)
+    resp = jsonify(item)
+    resp.set_etag(f'{digest[:16]}-{content_id}')
+    resp.headers['Cache-Control'] = 'private, no-cache'
+    return resp.make_conditional(request)
+
+
 # ---- job creation ----------------------------------------------------------
 @bp.post('/tarr/jobs')
 def create_tarr_job():

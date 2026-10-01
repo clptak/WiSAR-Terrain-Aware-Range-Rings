@@ -51,6 +51,79 @@ def test_profiles_listing(client):
     assert ds['default_calibration'] == {'m25': 1.05, 'm50': 1.35, 'm75': 1.8}
 
 
+# ---- reference content -----------------------------------------------------
+CONTENT_IDS = ['metadata', 'changelog', 'validation', 'tarr-explainer', 'travel-time-explainer', 'scope-note']
+
+
+@pytest.mark.parametrize('cid', CONTENT_IDS)
+def test_content_sections_from_web_tool_page(client, cid):
+    r = client.get(f'/api/v1/content/{cid}', headers=ALICE)
+    assert r.status_code == 200, r.json
+    body = r.json
+    assert client.ctx.spec.errors('Content', body) == []
+    assert body['id'] == cid and body['html'].strip()
+    html = body['html'].lower()
+    for banned in ('<script', '<button', '<input', '<form', 'onclick', 'javascript:', '<!--'):
+        assert banned not in html, banned
+    # every CSS variable the fragment uses has a value
+    import re
+    used = set(re.findall(r'var\((--[a-z0-9-]+)', body['html']))
+    assert used == set(body['css_variables'])
+    assert r.headers['ETag'] and r.headers['Cache-Control'] == 'private, no-cache'
+
+
+def test_content_keeps_the_web_tool_text(client):
+    import html as H
+    import re
+    src = open(os.path.join(ROOT, 'app', 'static', 'index.html'), encoding='utf-8').read()
+
+    def words(h):
+        return ' '.join(H.unescape(re.sub(r'<[^>]+>', ' ', re.sub(r'<!--.*?-->', '', h, flags=re.S))).split())
+    page = words(src)
+    for cid in CONTENT_IDS:
+        body = client.get(f'/api/v1/content/{cid}', headers=ALICE).json
+        assert words(body['html']) in page, cid
+    tt = client.get('/api/v1/content/travel-time-explainer', headers=ALICE).json
+    assert tt['title'] == 'Understanding Travel Time analysis'
+    assert tt['html'].count('<svg') == 3 and 'viewBox=' in tt['html']  # SVG markup kept as written
+    assert 'Got it' not in words(tt['html'])
+    note = client.get('/api/v1/content/scope-note', headers=ALICE).json
+    assert 'one input among many' in note['html'] and note['html'].startswith('<p')
+
+
+def test_content_etag_and_304(client):
+    r = client.get('/api/v1/content/metadata', headers=ALICE)
+    r2 = client.get('/api/v1/content/metadata', headers={**ALICE, 'If-None-Match': r.headers['ETag']})
+    assert r2.status_code == 304 and not r2.data
+
+
+def test_content_needs_token_and_known_id(client):
+    assert client.get('/api/v1/content/metadata').status_code == 401
+    r = client.get('/api/v1/content/nope', headers=ALICE)
+    assert r.status_code == 404 and r.mimetype == 'application/problem+json'
+
+
+def test_content_follows_page_changes_and_reports_missing_sections(make_app, tmp_path):
+    page = tmp_path / 'index.html'
+    page.write_text('<html><head><style>:root{--text-muted:#123456}</style></head><body>'
+                    '<div class="modal-overlay hidden" id="metadataModal" onclick="x()">'
+                    '<div class="modal"><h2>Old</h2><p style="color:var(--text-muted)">one</p>'
+                    '<div style="text-align:center;"><button onclick="y()">Close</button></div></div></div>'
+                    '</body></html>', encoding='utf-8')
+    app, _ = make_app(content_html=str(page))
+    c = app.test_client()
+    body = c.get('/api/v1/content/metadata', headers=ALICE).json
+    assert body['title'] == 'Old' and 'Close' not in body['html'] and '<div' not in body['html']
+    assert body['css_variables'] == {'--text-muted': '#123456'}
+    page.write_text(page.read_text().replace('Old', 'New'), encoding='utf-8')
+    os.utime(page, ns=(time.time_ns() + 10**9, time.time_ns() + 10**9))
+    assert c.get('/api/v1/content/metadata', headers=ALICE).json['title'] == 'New'
+    r = c.get('/api/v1/content/changelog', headers=ALICE)   # section not in this page
+    assert r.status_code == 503 and r.mimetype == 'application/problem+json'
+    page.unlink()
+    assert c.get('/api/v1/content/metadata', headers=ALICE).status_code == 503
+
+
 # ---- TARR ------------------------------------------------------------------
 def test_tarr_listed_end_to_end(client, fake_pipeline):
     r = client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE)

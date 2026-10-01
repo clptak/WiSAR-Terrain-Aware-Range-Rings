@@ -43,6 +43,10 @@
       "description": "Lost-person subject profile datasets used to resolve TARR distances."
     },
     {
+      "name": "Content",
+      "description": "Reference text from the WiSAR web tool (explainers, metadata, changelog, validation), for display in client modals."
+    },
+    {
       "name": "TARR",
       "description": "Terrain-Aware Range Rings at p25/p50/p75 find distances."
     },
@@ -107,6 +111,80 @@
           },
           "503": {
             "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/content/{content_id}": {
+      "get": {
+        "tags": [
+          "Content"
+        ],
+        "operationId": "getContent",
+        "summary": "Get a reference content section",
+        "description": "One section of the WiSAR web tool's reference content, read from its static/index.html at request time, so it follows upstream updates. `html` is the section body as an HTML fragment: the web tool's markup and inline styles, with its Close/Got it button, scripts, form controls and inline event handlers removed. The inline styles use CSS custom properties (for example `var(--text-secondary)`); `css_variables` gives the web tool's values for the ones used, so a client can set them on the element it renders into. The colours were chosen for a dark background.\n\nSections: `metadata`, `changelog`, `validation`, `tarr-explainer` (\"What's a TARR?\"), `travel-time-explainer` (\"What's Travel Time?\"), and `scope-note` (the note under the mode choice on the web tool's start screen).\n\nResponses carry an `ETag`; send it back in `If-None-Match` to get `304 Not Modified` when the page has not changed.",
+        "parameters": [
+          {
+            "name": "content_id",
+            "in": "path",
+            "required": true,
+            "description": "Section to return.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "metadata",
+                "changelog",
+                "validation",
+                "tarr-explainer",
+                "travel-time-explainer",
+                "scope-note"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The section.",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Content"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified since the ETag sent in If-None-Match."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No section with that id.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The web tool page is missing, the section was not found in it (renamed upstream), or CloudTAK could not be reached to verify the token.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           }
         }
       }
@@ -1842,6 +1920,84 @@
                     "null"
                   ]
                 }
+              }
+            }
+          }
+        }
+      },
+      "Content": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "html",
+          "css_variables",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "metadata",
+              "changelog",
+              "validation",
+              "tarr-explainer",
+              "travel-time-explainer",
+              "scope-note"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "The section's heading in the web tool.",
+            "examples": [
+              "Understanding Travel Time analysis"
+            ]
+          },
+          "html": {
+            "type": "string",
+            "description": "HTML fragment with inline styles. No scripts, form controls or event handlers."
+          },
+          "css_variables": {
+            "type": "object",
+            "description": "Values of the CSS custom properties the fragment uses, from the web tool's :root.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "examples": [
+              {
+                "--text-secondary": "#9498a3",
+                "--border": "#2e3138"
+              }
+            ]
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "file",
+              "element_id",
+              "sha256"
+            ],
+            "description": "Where the section was read from.",
+            "properties": {
+              "file": {
+                "type": "string",
+                "examples": [
+                  "static/index.html"
+                ]
+              },
+              "element_id": {
+                "type": "string",
+                "description": "id of the modal in the web tool page.",
+                "examples": [
+                  "travelTimeInfoModal"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "Hash of the page the section came from."
               }
             }
           }
