@@ -5,3 +5,6 @@
 smoke-out/
 __pycache__/
 .pytest_cache/
+
+# Claude desktop app output folder (not part of the repo)
+Claude outputs/
