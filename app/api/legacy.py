@@ -2,8 +2,9 @@
 
 - /api/analyze and /api/analyze-isochrone keep their synchronous JSON
   contract, but run on the shared job worker (one analysis at a time).
-- Legacy readers of WORK_DIR files take the pipeline lock, so they never read
-  a raster while an analysis is rewriting it.
+- Legacy readers of result files take the pipeline lock. Since v1.18 each
+  legacy analysis has its own folder under WISAR_RUNS_DIR, so this is now
+  only a precaution.
 - Every legacy /api route requires the same CloudTAK token as /api/v1, since
   the container is exposed on a public hostname.
 - The Leaflet UI is not served: / redirects to the API docs, /static is 404.
@@ -16,7 +17,7 @@ from .problems import ApiProblem
 
 QUEUED = ('run_analysis_endpoint', 'run_isochrone_endpoint')
 LOCKED_READERS = ('serve_result', 'serve_cost_png', 'serve_terrain_png', 'serve_percentile_png')
-AUTH_ONLY = ('export_tarrs_to_caltopo',)
+AUTH_ONLY = ('export_tarrs_to_caltopo', 'get_analysis')
 
 
 def wrap_legacy(app, ctx):

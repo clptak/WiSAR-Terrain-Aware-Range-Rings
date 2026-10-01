@@ -66,9 +66,10 @@ class FakePipeline:
         if self.fail:
             raise RuntimeError(self.fail)
 
-    def run_analysis(self, ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.0):
-        self._common('tarr', ipp_lat=ipp_lat, ipp_lng=ipp_lng, p=(pct_25_km, pct_50_km, pct_75_km), radius_km=radius_km)
-        p = _fake_rasters(self.workdir, True)
+    def run_analysis(self, ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.0, work_dir=None):
+        self._common('tarr', ipp_lat=ipp_lat, ipp_lng=ipp_lng, p=(pct_25_km, pct_50_km, pct_75_km), radius_km=radius_km,
+                     work_dir=work_dir)
+        p = _fake_rasters(work_dir or self.workdir, True)
         feats = [{'type': 'Feature', 'geometry': SQUARE,
                   'properties': {'percentile': lab, 'threshold_m': km * 1000, 'color': col,
                                  'label_lat': 34.98, 'label_lng': -111.78}}
@@ -76,20 +77,22 @@ class FakePipeline:
                                       ('75%', pct_75_km, '#ff6a1a'))]
         return {'cost_distance_path': p['cost_distance'], 'cost_surface_path': p['cost_surface'],
                 'probability_path': p['probability'], 'dem_path': p['cost_surface'], 'nlcd_path': None,
-                'jacobs_masks_path': p['jacobs'], 'work_dir': self.workdir,
+                'jacobs_masks_path': p['jacobs'], 'work_dir': work_dir or self.workdir,
                 'contour_geojson': {'type': 'FeatureCollection', 'features': feats},
                 'warnings': [{'severity': 'info', 'source': 'dem', 'message': 'test note'}]}
 
-    def run_isochrone_analysis(self, ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hours, radius_km=10.0):
-        self._common('iso', ipp_lat=ipp_lat, speed=base_speed_kmh, intervals=time_intervals_hours, radius_km=radius_km)
-        p = _fake_rasters(self.workdir, False)
+    def run_isochrone_analysis(self, ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hours, radius_km=10.0,
+                               work_dir=None):
+        self._common('iso', ipp_lat=ipp_lat, speed=base_speed_kmh, intervals=time_intervals_hours, radius_km=radius_km,
+                     work_dir=work_dir)
+        p = _fake_rasters(work_dir or self.workdir, False)
         feats = [{'type': 'Feature', 'geometry': SQUARE,
                   'properties': {'hours': h, 'label': f'{h}h', 'threshold_m': h * base_speed_kmh * 1000,
                                  'color': '#00bcd4', 'label_lat': 34.98, 'label_lng': -111.78}}
                  for h in time_intervals_hours]
         return {'cost_distance_path': p['cost_distance'], 'cost_surface_path': p['cost_surface'],
                 'probability_path': None, 'dem_path': p['cost_surface'], 'nlcd_path': None,
-                'jacobs_masks_path': p['jacobs'], 'work_dir': self.workdir,
+                'jacobs_masks_path': p['jacobs'], 'work_dir': work_dir or self.workdir,
                 'contour_geojson': {'type': 'FeatureCollection', 'features': feats}, 'warnings': []}
 
 
@@ -115,12 +118,21 @@ def fake_pipeline(tmp_path, monkeypatch):
     mod = types.ModuleType('pipeline')
     mod.run_analysis = fp.run_analysis
     mod.run_isochrone_analysis = fp.run_isochrone_analysis
+    # server.py (v1.18+) records snapshot versions in each legacy manifest.
+    for name in ('osm_cache', 'nlcd_cache', 'nhd_cache'):
+        sub = types.ModuleType(f'pipeline.{name}')
+        sub.cache_is_available = lambda: False
+        sub.read_cache_metadata = lambda: {}
+        setattr(mod, name, sub)
+        monkeypatch.setitem(sys.modules, f'pipeline.{name}', sub)
     monkeypatch.setitem(sys.modules, 'pipeline', mod)
     return fp
 
 
 @pytest.fixture
-def make_app(tmp_path, fake_pipeline):
+def make_app(tmp_path, fake_pipeline, monkeypatch):
+    # server.py (v1.18+) stores legacy analyses here and exits if it can't write.
+    monkeypatch.setenv('WISAR_RUNS_DIR', str(tmp_path / 'runs'))
     created = []
 
     def _make(auth_factory=None, **overrides):

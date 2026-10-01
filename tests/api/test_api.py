@@ -178,7 +178,9 @@ def test_geotiffs_are_lossless_cogs(client, tmp_path, fake_pipeline):
     prof, data, ims = _download(client, job['outputs']['cost-distance.tif']['href'], tmp_path, 'cd.tif')
     assert prof['compress'].lower() == 'deflate' and prof['tiled']
     assert ims.get('LAYOUT') == 'COG'
-    with rasterio.open(os.path.join(fake_pipeline.workdir, 'cost_distance.tif')) as src:
+    from conftest import _fake_rasters
+    os.makedirs(tmp_path / 'ref')
+    with rasterio.open(_fake_rasters(str(tmp_path / 'ref'), True)['cost_distance']) as src:
         assert (src.read(1) == data).all()      # bit-identical to the pipeline raster
     # attractor score: intersection 1.0, trail 0.55, stream 0.28, nodata corner -9999
     _, score, _ = _download(client, job['outputs']['attractor-score.tif']['href'], tmp_path, 'as.tif')
@@ -186,6 +188,16 @@ def test_geotiffs_are_lossless_cogs(client, tmp_path, fake_pipeline):
     assert score[40, 30] == pytest.approx(0.55)
     assert score[15, 5] == pytest.approx(0.28)
     assert score[0, 0] == -9999
+
+
+def test_each_job_gets_its_own_pipeline_work_dir(client, fake_pipeline):
+    ids = [client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE).json['id'],
+           client.post('/api/v1/travel-time/jobs', json=TT, headers=ALICE).json['id']]
+    for jid in ids:
+        assert wait_for(client, jid)['status'] == 'succeeded'
+    dirs = [kw['work_dir'] for _, kw in fake_pipeline.calls]
+    assert dirs == [os.path.join(client.ctx.jobs.job_dir(j), 'work') for j in ids]
+    assert not any(os.path.exists(d) for d in dirs)   # scratch removed once outputs are built
 
 
 def test_tarr_variant_fallback_matches_web_tool(client):
@@ -355,8 +367,15 @@ def test_legacy_analyze_runs_on_worker_with_same_contract(client, fake_pipeline)
     assert client.post('/api/analyze', json=body).status_code == 401
     r = client.post('/api/analyze', json=body, headers=ALICE)
     assert r.status_code == 200, r.json
-    assert r.json['status'] == 'ok' and r.json['analysis_id'] == '34.9523_-111.7610'
+    assert r.json['status'] == 'ok'
+    import re
+    aid = r.json['analysis_id']        # v1.18: <UTC stamp>_tarr_<lat>_<lng>_<8 hex>, one folder per run
+    assert re.fullmatch(r'\d{8}T\d{6}Z_tarr_34\.9523_-111\.7610_[0-9a-f]{8}', aid), aid
     assert fake_pipeline.threads == ['wisar-job-worker']
+    # reopening a saved run needs the token too
+    assert client.get(f'/api/analyses/{aid}').status_code == 401
+    reopened = client.get(f'/api/analyses/{aid}', headers=ALICE)
+    assert reopened.status_code == 200 and reopened.json['analysis_id'] == aid
 
 
 def test_legacy_and_v1_never_overlap(client, fake_pipeline):
