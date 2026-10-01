@@ -10,6 +10,7 @@ import numpy as np
 import rasterio
 import os
 import math
+import time
 from shapely.geometry import shape
 
 from pipeline.shared import WORK_DIR, repair_geometry
@@ -18,6 +19,18 @@ from pipeline.downloads import download_dem, download_nlcd, download_osm_feature
 from pipeline.cost_surface import build_cost_surface
 from pipeline.cost_distance import compute_cost_distance
 from pipeline.jacobs_masks import compute_jacobs_masks
+
+
+class _StepTimer:
+    """Seconds per pipeline step, recorded into the run manifest by the server."""
+    def __init__(self):
+        self.timings = {}
+        self._t = time.time()
+
+    def mark(self, step):
+        now = time.time()
+        self.timings[step] = round(now - self._t, 2)
+        self._t = now
 
 
 # ===============================================================================
@@ -277,7 +290,7 @@ def extract_isochrone_polygons(cost_distance_path, base_speed_kmh, time_interval
 # ===============================================================================
 
 def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hours,
-                          radius_km=10.0):
+                          radius_km=10.0, work_dir=None):
     """Run the full analysis pipeline for time-based isochrone mode.
 
     This is the second mode alongside TARR Analysis. It reuses the same
@@ -301,6 +314,7 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
                    larger than TARR default because slow speeds over
                    long time horizons can cover surprising distance
                    along trails)
+        work_dir: Directory for every file this run writes (see run_analysis)
     Returns:
         Dict with paths to all intermediate files, contour GeoJSON, and bbox
     """
@@ -325,12 +339,19 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     print("\n[1/7] Computing bounding box...")
     bbox = get_bbox_from_ipp(ipp_lat, ipp_lng, effective_radius)
     print(f"  Bbox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
+    # Every file this run writes goes under wd. Fixed file names are fine
+    # because the directory is unique per analysis (server.py creates it).
+    wd = work_dir or WORK_DIR
+    os.makedirs(wd, exist_ok=True)
+    timer = _StepTimer()
 
     print("\n[2/7] Downloading DEM...")
-    dem_path, dem_warnings = download_dem(bbox)
+    dem_path, dem_warnings = download_dem(bbox, output_path=os.path.join(wd, 'dem.tif'))
+    timer.mark('dem')
 
     print("\n[3/7] Loading NLCD land cover from the snapshot...")
-    nlcd_path, nlcd_warnings = download_nlcd(bbox)
+    nlcd_path, nlcd_warnings = download_nlcd(bbox, output_path=os.path.join(wd, 'nlcd.tif'))
+    timer.mark('nlcd')
 
     print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
@@ -338,15 +359,21 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
     # only the expected 'trails'/'roads'/'waterways'/'powerlines' keys.
     # The warnings are threaded up to the server response for the UI.
     osm_warnings = osm_features.pop('_warnings', [])
+    timer.mark('osm')
 
     print("\n[5/7] Loading NHD hydrography from the snapshot...")
     nhd_features, nhd_warnings = download_nhd_features(bbox)
+    timer.mark('nhd')
 
     print("\n[6/7] Building cost surface...")
-    cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features)
+    cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features,
+                                   output_path=os.path.join(wd, 'cost_surface.tif'))
+    timer.mark('cost_surface')
 
     print("\n[7/7] Computing cost-distance...")
-    cd_path = compute_cost_distance(cost_path, ipp_lat, ipp_lng, dem_path)
+    cd_path = compute_cost_distance(cost_path, ipp_lat, ipp_lng, dem_path,
+                                    output_path=os.path.join(wd, 'cost_distance.tif'))
+    timer.mark('cost_distance')
 
     # --- Compute Jacobs terrain-attractor masks (visualization layer) ---
     # Same hook as TARR mode — the Pure heatmap renders underneath the
@@ -360,16 +387,20 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
             dem_path=dem_path,
             osm_features=osm_features,
             nhd_features=nhd_features,
+            output_path=os.path.join(wd, 'jacobs_masks.tif'),
         )
     except Exception as e:
         print(f"  Jacobs mask computation failed (non-fatal): {e}")
         import traceback
         traceback.print_exc()
 
+    timer.mark('jacobs_masks')
+
     # Extract isochrone polygons — no probability surface needed for this mode
     # since we're showing reachability, not Koester-based likelihood
     print("\n[9] Extracting isochrone polygons...")
     isochrone_geojson = extract_isochrone_polygons(cd_path, base_speed_kmh, time_intervals_hours)
+    timer.mark('contours')
 
     print("\nIsochrone analysis complete.")
     return {
@@ -380,7 +411,9 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
         'cost_distance_path': cd_path,
         # No probability_path — isochrone mode doesn't use Koester percentiles
         'probability_path': None,
-        'work_dir': WORK_DIR,
+        'work_dir': wd,
+        'radius_km': effective_radius,
+        'timings_s': timer.timings,
         'contour_geojson': isochrone_geojson,
         'isochrone_mode': True,
         'base_speed_kmh': base_speed_kmh,
@@ -396,17 +429,34 @@ def run_isochrone_analysis(ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hour
 # STEP 4: TARR analysis orchestrator
 # ===============================================================================
 
-def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.0):
+def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.0,
+                 work_dir=None):
+    """Run the full TARR pipeline for one IPP.
+
+    Args:
+        work_dir: Directory for every file this run writes. The server passes
+                  one directory per analysis; None uses the process-wide
+                  WORK_DIR, which is only safe for one analysis per process.
+    Returns:
+        Dict with raster paths, contour GeoJSON, bbox, warnings and timings.
+    """
     print("=" * 60)
     print("WiSAR TARR Analysis Pipeline")
     print("=" * 60)
     print("\n[1/7] Computing bounding box...")
     bbox = get_bbox_from_ipp(ipp_lat, ipp_lng, radius_km)
     print(f"  Bbox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
+    # Every file this run writes goes under wd. Fixed file names are fine
+    # because the directory is unique per analysis (server.py creates it).
+    wd = work_dir or WORK_DIR
+    os.makedirs(wd, exist_ok=True)
+    timer = _StepTimer()
     print("\n[2/7] Downloading DEM...")
-    dem_path, dem_warnings = download_dem(bbox)
+    dem_path, dem_warnings = download_dem(bbox, output_path=os.path.join(wd, 'dem.tif'))
+    timer.mark('dem')
     print("\n[3/7] Loading NLCD land cover from the snapshot...")
-    nlcd_path, nlcd_warnings = download_nlcd(bbox)
+    nlcd_path, nlcd_warnings = download_nlcd(bbox, output_path=os.path.join(wd, 'nlcd.tif'))
+    timer.mark('nlcd')
     print("\n[4/7] Loading OSM features from the weekly snapshot...")
     osm_features = download_osm_features(bbox)
     # Strip warnings from the osm_features dict before passing it into
@@ -414,12 +464,18 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
     # warnings are threaded up to the server response so the UI can
     # surface them to the SAR coordinator.
     osm_warnings = osm_features.pop('_warnings', [])
+    timer.mark('osm')
     print("\n[5/7] Loading NHD hydrography from the snapshot...")
     nhd_features, nhd_warnings = download_nhd_features(bbox)
+    timer.mark('nhd')
     print("\n[6/7] Building cost surface...")
-    cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features)
+    cost_path = build_cost_surface(dem_path, nlcd_path, osm_features, nhd_features=nhd_features,
+                                   output_path=os.path.join(wd, 'cost_surface.tif'))
+    timer.mark('cost_surface')
     print("\n[7/7] Computing cost-distance...")
-    cd_path = compute_cost_distance(cost_path, ipp_lat, ipp_lng, dem_path)
+    cd_path = compute_cost_distance(cost_path, ipp_lat, ipp_lng, dem_path,
+                                    output_path=os.path.join(wd, 'cost_distance.tif'))
+    timer.mark('cost_distance')
 
     # --- Compute Jacobs terrain-attractor masks (visualization layer) ---
     # The Pure-heatmap renderer in server.py uses these masks to color each
@@ -436,21 +492,28 @@ def run_analysis(ipp_lat, ipp_lng, pct_25_km, pct_50_km, pct_75_km, radius_km=5.
             dem_path=dem_path,
             osm_features=osm_features,
             nhd_features=nhd_features,
+            output_path=os.path.join(wd, 'jacobs_masks.tif'),
         )
     except Exception as e:
         print(f"  Jacobs mask computation failed (non-fatal): {e}")
         import traceback
         traceback.print_exc()
 
+    timer.mark('jacobs_masks')
+
     print("\n[9] Generating probability surface...")
-    prob_path = generate_probability_surface(cd_path, pct_25_km, pct_50_km, pct_75_km)
+    prob_path = generate_probability_surface(cd_path, pct_25_km, pct_50_km, pct_75_km,
+                                             output_path=os.path.join(wd, 'probability.tif'))
+    timer.mark('probability')
     print("\n[10] Extracting TARR contour polygons...")
     contour_geojson = extract_contour_polygons(cd_path, pct_25_km, pct_50_km, pct_75_km)
+    timer.mark('contours')
     print("\nTARR analysis complete.")
     return {
         'bbox': bbox, 'dem_path': dem_path, 'nlcd_path': nlcd_path,
         'cost_surface_path': cost_path, 'cost_distance_path': cd_path,
-        'probability_path': prob_path, 'work_dir': WORK_DIR,
+        'probability_path': prob_path, 'work_dir': wd,
+        'radius_km': radius_km, 'timings_s': timer.timings,
         'contour_geojson': contour_geojson,
         # Data-source warnings in pipeline order; the UI shows each one.
         'warnings': dem_warnings + nlcd_warnings + osm_warnings + nhd_warnings,

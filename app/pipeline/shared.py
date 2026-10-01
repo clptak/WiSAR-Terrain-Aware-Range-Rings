@@ -10,9 +10,12 @@
 
 import tempfile
 
-# All intermediate files (DEM, NLCD, cost surface, etc.) are written to a
-# temporary directory that is unique per pipeline run. This prevents
-# collisions if multiple analyses run concurrently on the server.
+# Default scratch directory, created once per process. It is only the
+# fallback for scripts that run a single analysis per process (the
+# validation harness, tools/compare_sources.py). The server never relies
+# on it: since v1.18 it passes one directory per analysis to run_analysis
+# / run_isochrone_analysis as work_dir, because the fixed file names below
+# would otherwise let the next analysis overwrite the previous one's rasters.
 WORK_DIR = tempfile.mkdtemp(prefix='wisar_')
 
 # --- NLCD land cover impedance lookup table ---
