@@ -8,3 +8,6 @@ __pycache__/
 
 # Claude desktop app output folder (not part of the repo)
 Claude outputs/
+
+# Local ops runbook (deployment-specific, kept out of git)
+wisar-add-cloudtak-deployment.md
