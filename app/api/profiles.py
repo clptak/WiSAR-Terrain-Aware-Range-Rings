@@ -3,6 +3,11 @@
 Resolution mirrors app.js applyLPB exactly: exact eco_region+terrain, then
 eco_region with default terrain, then the category default, then the last
 variant. Calibration is per band (m25/m50/m75), as in app.js runAnalysis.
+
+p90 (custom subjects only) is an API addition: the Arizona table's 90%
+distance. It is never calibrated (no dataset has a 90% multiplier). When
+calibration pushes p75 to or past it, the 90% ring is dropped: it is left
+out of final_distances_km and the job reports a warning (runner.py).
 """
 import glob
 import json
@@ -51,11 +56,16 @@ class ProfileStore:
             unit = subject['distances'].get('unit', 'km')
             factor = MI_TO_KM if unit == 'mi' else 1.0
             source = {p: subject['distances'][p] * factor for p, _ in BANDS}
+            if subject['distances'].get('p90') is not None:
+                source['p90'] = subject['distances']['p90'] * factor
             label = subject['name']
 
         if not source['p25'] < source['p50'] < source['p75']:
             raise unprocessable([{'pointer': '/subject/distances',
                                   'detail': 'p25, p50 and p75 must be strictly increasing'}])
+        if 'p90' in source and not source['p90'] > source['p75']:
+            raise unprocessable([{'pointer': '/subject/distances/p90',
+                                  'detail': 'p90 must be greater than p75'}])
 
         if mode == 'none' or (mode == 'auto' and cat is None):
             applied, mult = 'none', {'m25': 1.0, 'm50': 1.0, 'm75': 1.0}
@@ -72,6 +82,8 @@ class ProfileStore:
         if not final['p25'] < final['p50'] < final['p75']:
             raise unprocessable([{'pointer': '/calibration',
                                   'detail': f'calibrated distances are not increasing: {final}'}])
+        if 'p90' in source and source['p90'] > final['p75']:
+            final['p90'] = round(source['p90'], 4)  # never calibrated
         source = {p: round(v, 4) for p, v in source.items()}
         return {
             'dataset': ds_id if (cat is not None or applied != 'none') else body.get('dataset'),
@@ -81,7 +93,7 @@ class ProfileStore:
             'calibration_applied': applied,
             'multipliers': {m: mult[m] for _, m in BANDS},
             'final_distances_km': {**final, 'unit': 'km'},
-            'radius_km': round(final['p75'] + 2.0, 4),
+            'radius_km': round(final.get('p90', final['p75']) + 2.0, 4),
         }
 
 

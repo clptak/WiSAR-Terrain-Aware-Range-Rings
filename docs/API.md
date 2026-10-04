@@ -56,9 +56,28 @@ routes change.
 - **Listed**: `{"kind": "listed", "category", "eco_region", "terrain"}` from
   a dataset in `app/api/data/profiles/`. Variant lookup and per-band
   calibration match the web tool exactly.
-- **Custom**: `{"kind": "custom", "name", "distances": {"p25", "p50", "p75", "unit": "km"|"mi"}}`.
+- **Custom**: `{"kind": "custom", "name", "distances": {"p25", "p50", "p75", "p90", "unit": "km"|"mi"}}`.
+  `p90` is optional (see below).
 - `calibration`: `auto` (default; listed → category or dataset-default
   multipliers, custom → none), `global` (dataset default), `none`.
+
+### The 90% ring (custom subjects)
+
+The Arizona table has a 90% distance that Koester data doesn't. A custom
+subject may send it as `p90` (greater than `p75`). It is an API addition;
+Jamie's pipeline is unchanged:
+
+- The analysis radius becomes `p90 + 2 km` instead of `p75 + 2 km`, so the
+  grid can be slightly coarser for every ring (1000-cell cap).
+- The pipeline runs with 25/50/75 as usual. The API then cuts a fourth ring,
+  `percentile: "90%"`, color `#e5383b`, from the same cost-distance raster by
+  calling the pipeline's own `extract_contour_polygons` with the 90% distance,
+  so the cut and smoothing are identical.
+- `p90` is never calibrated: no dataset has a 90% multiplier. If calibration
+  moves `p75` to or past it, the ring is dropped, `final_distances_km` has no
+  `p90`, and the job carries a `p90` warning. The job still succeeds.
+- `probability.tif` and the probability overlay keep their four classes
+  (class 1 is everything beyond 75%).
 
 To add a dataset, drop another `<id>.json` in `app/api/data/profiles/` with
 the same shape as `koester.json`. It appears in `GET /profiles` on restart.

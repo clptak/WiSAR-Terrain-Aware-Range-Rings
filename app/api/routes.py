@@ -164,6 +164,9 @@ def _validate(schema, body):
         if not d['p25'] < d['p50'] < d['p75']:
             raise unprocessable([{'pointer': '/subject/distances',
                                   'detail': 'p25, p50 and p75 must be strictly increasing'}])
+        if d.get('p90') is not None and not d['p90'] > d['p75']:
+            raise unprocessable([{'pointer': '/subject/distances/p90',
+                                  'detail': 'p90 must be greater than p75'}])
 
 
 def _accepted(job):

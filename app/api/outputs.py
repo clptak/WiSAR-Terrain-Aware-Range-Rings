@@ -139,6 +139,54 @@ def contours_kml(fc, job_type):
     return '\n'.join(out) + '\n'
 
 
+# The Arizona 90% ring (API addition; see profiles.py). Jamie's
+# extract_contour_polygons cuts exactly three rings with fixed labels, so the
+# 90% ring is cut by calling it with the 90% distance for all three and
+# relabelling the first. Same cut, smoothing and simplification as the
+# other rings, with no copied pipeline code.
+P90_LABEL = '90%'
+P90_COLOR = '#e5383b'
+KM_PER_MI = 1.609344
+
+
+def add_p90_ring(result, resolved):
+    """Append the 90% ring to result['contour_geojson'], or a warning saying
+    why there isn't one. Never fails the job."""
+    source = resolved.get('source_distances_km') or {}
+    final = resolved.get('final_distances_km') or {}
+    if source.get('p90') is None:
+        return
+    warnings = result['warnings'] = list(result.get('warnings') or [])
+    if final.get('p90') is None:
+        warnings.append({'severity': 'warning', 'source': 'p90',
+                         'message': f"The 90% ring was not drawn: calibration moved the 75% distance to "
+                                    f"{_km_mi(final['p75'])}, past the uncalibrated 90% distance of "
+                                    f"{_km_mi(source['p90'])}."})
+        return
+    km = final['p90']
+    try:
+        from pipeline import extract_contour_polygons
+        cut = extract_contour_polygons(result['cost_distance_path'], km, km, km)
+        feats = (cut or {}).get('features') or []
+    except Exception as e:  # noqa: BLE001 - the 90% ring must never fail the job
+        warnings.append({'severity': 'warning', 'source': 'p90',
+                         'message': f'The 90% ring could not be drawn ({type(e).__name__}: {e}).'})
+        return
+    if not feats:
+        warnings.append({'severity': 'warning', 'source': 'p90',
+                         'message': f'The 90% ring was not drawn: no reachable area within {_km_mi(km)}.'})
+        return
+    ring = copy.deepcopy(feats[0])
+    ring.setdefault('properties', {}).update(percentile=P90_LABEL, color=P90_COLOR)
+    fc = copy.deepcopy(result.get('contour_geojson')) or {'type': 'FeatureCollection', 'features': []}
+    fc.setdefault('features', []).append(ring)
+    result['contour_geojson'] = fc
+
+
+def _km_mi(km):
+    return f'{km:.2f} km ({km / KM_PER_MI:.2f} mi)'
+
+
 def build_outputs(result, job_type, job_dir):
     """Write every output for the job and return (outputs_meta, result_block)."""
     os.makedirs(job_dir, exist_ok=True)

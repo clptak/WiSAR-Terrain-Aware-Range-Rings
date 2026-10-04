@@ -228,7 +228,7 @@
                   }
                 },
                 "custom": {
-                  "summary": "Custom (unlisted) profile, miles, uncalibrated",
+                  "summary": "Custom (Arizona table) profile with the 90% ring, miles, uncalibrated",
                   "value": {
                     "ipp": {
                       "lat": 34.9523,
@@ -241,6 +241,7 @@
                         "p25": 1.2,
                         "p50": 2.4,
                         "p75": 4.6,
+                        "p90": 7.5,
                         "unit": "mi"
                       }
                     },
@@ -1532,7 +1533,7 @@
           "p75"
         ],
         "additionalProperties": false,
-        "description": "Find distances; must be strictly increasing and positive.",
+        "description": "Find distances; p25, p50 and p75 must be strictly increasing and positive. p90 is optional and only meaningful for custom subjects (the Arizona table's 90% distance; Koester data has none). It must be greater than p75 and is never calibrated.",
         "properties": {
           "p25": {
             "type": "number",
@@ -1545,6 +1546,11 @@
           "p75": {
             "type": "number",
             "exclusiveMinimum": 0
+          },
+          "p90": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Optional 90% distance (custom subjects). Draws a fourth, red \"90%\" ring cut from the same cost-distance raster. In final_distances_km it is left out when calibration moved p75 to or past it; the job then carries a `p90` warning."
           },
           "unit": {
             "type": "string",
@@ -1795,7 +1801,8 @@
             "$ref": "#/components/schemas/Distances"
           },
           "radius_km": {
-            "type": "number"
+            "type": "number",
+            "description": "Analysis radius: the largest final distance (p90 when drawn, else p75) plus 2 km."
           }
         }
       },
@@ -1847,7 +1854,7 @@
           },
           "source": {
             "type": "string",
-            "description": "e.g. dem, nlcd, nhd, osm, jacobs, overlay."
+            "description": "e.g. dem, nlcd, nhd, osm, jacobs, overlay, p90."
           },
           "message": {
             "type": "string",
@@ -2163,9 +2170,10 @@
                 "enum": [
                   "25%",
                   "50%",
-                  "75%"
+                  "75%",
+                  "90%"
                 ],
-                "description": "TARR only."
+                "description": "TARR only. \"90%\" appears only when the request sent p90 and the ring was drawn."
               },
               "hours": {
                 "type": "number",

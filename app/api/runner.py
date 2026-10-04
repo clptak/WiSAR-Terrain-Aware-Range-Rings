@@ -32,6 +32,7 @@ def run_job(job, job_dir):
     try:
         if job['type'] == 'tarr':
             result = _run_tarr_pipeline(req['ipp'], resolved['final_distances_km'], resolved['radius_km'], work_dir)
+            out.add_p90_ring(result, resolved)
         else:
             result = _run_isochrone_pipeline(req['ipp'], resolved['speed_kmh'], resolved['intervals_hours'],
                                              resolved['min_radius_km'], work_dir)

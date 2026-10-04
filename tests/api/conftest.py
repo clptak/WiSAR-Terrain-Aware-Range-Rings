@@ -57,6 +57,9 @@ class FakePipeline:
         self.delay = 0.0
         self.fail = None
         self.threads = []
+        self.cuts = []           # extract_contour_polygons calls (the API's 90% ring)
+        self.cut_result = None   # None: rings like the real function; else returned as-is
+        self.cut_fail = None
 
     def _common(self, kind, **kw):
         self.calls.append((kind, kw))
@@ -80,6 +83,21 @@ class FakePipeline:
                 'jacobs_masks_path': p['jacobs'], 'work_dir': work_dir or self.workdir,
                 'contour_geojson': {'type': 'FeatureCollection', 'features': feats},
                 'warnings': [{'severity': 'info', 'source': 'dem', 'message': 'test note'}]}
+
+    def extract_contour_polygons(self, cost_distance_path, pct_25_km, pct_50_km, pct_75_km):
+        """Same shape as pipeline.outputs.extract_contour_polygons: fixed
+        25/50/75 labels and colours whatever the thresholds."""
+        self.cuts.append((pct_25_km, pct_50_km, pct_75_km))
+        if self.cut_fail:
+            raise RuntimeError(self.cut_fail)
+        if self.cut_result is not None:
+            return self.cut_result
+        return {'type': 'FeatureCollection', 'features': [
+            {'type': 'Feature', 'geometry': SQUARE,
+             'properties': {'percentile': lab, 'threshold_m': km * 1000, 'color': col,
+                            'label_lat': 34.98, 'label_lng': -111.78}}
+            for lab, km, col in (('25%', pct_25_km, '#ffffff'), ('50%', pct_50_km, '#ffca00'),
+                                 ('75%', pct_75_km, '#ff6a1a'))]}
 
     def run_isochrone_analysis(self, ipp_lat, ipp_lng, base_speed_kmh, time_intervals_hours, radius_km=10.0,
                                work_dir=None):
@@ -118,6 +136,7 @@ def fake_pipeline(tmp_path, monkeypatch):
     mod = types.ModuleType('pipeline')
     mod.run_analysis = fp.run_analysis
     mod.run_isochrone_analysis = fp.run_isochrone_analysis
+    mod.extract_contour_polygons = fp.extract_contour_polygons
     # server.py (v1.18+) records snapshot versions in each legacy manifest.
     for name in ('osm_cache', 'nlcd_cache', 'nhd_cache'):
         sub = types.ModuleType(f'pipeline.{name}')

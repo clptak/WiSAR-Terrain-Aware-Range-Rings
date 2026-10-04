@@ -234,11 +234,102 @@ def test_custom_profile_global_calibration(client):
     assert res['final_distances_km']['p75'] == 7.2
 
 
+AZ_P90 = {'ipp': IPP, 'subject': {'kind': 'custom', 'name': 'AZ Hiker',
+                                  'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': 6, 'unit': 'mi'}}}
+
+
+def test_custom_p90_draws_a_fourth_ring(client, fake_pipeline):
+    r = client.post('/api/v1/tarr/jobs', json=AZ_P90, headers=ALICE)
+    assert r.status_code == 202, r.json
+    res = r.json['resolved']
+    assert res['source_distances_km']['p90'] == 9.6561
+    assert res['final_distances_km'] == {'p25': 1.6093, 'p50': 3.2187, 'p75': 6.4374, 'p90': 9.6561, 'unit': 'km'}
+    assert res['multipliers'] == {'m25': 1.0, 'm50': 1.0, 'm75': 1.0}
+    assert res['radius_km'] == 11.6561  # 90% + 2 km, not 75% + 2 km
+
+    job = wait_for(client, r.json['id'])
+    assert job['status'] == 'succeeded', job['error']
+    # Jamie's pipeline still gets three distances; the API cuts the 90% ring
+    assert fake_pipeline.calls[0][1]['p'] == (1.6093, 3.2187, 6.4374)
+    assert fake_pipeline.calls[0][1]['radius_km'] == 11.6561
+    assert fake_pipeline.cuts == [(9.6561, 9.6561, 9.6561)]
+    assert job['result']['contour_count'] == 4
+    assert not [w for w in job['result']['warnings'] if w['source'] == 'p90']
+
+    feats = client.get(job['outputs']['contours.geojson']['href'], headers=ALICE).json['features']
+    assert [f['properties']['percentile'] for f in feats] == ['25%', '50%', '75%', '90%']
+    p90 = feats[3]['properties']
+    assert p90['color'] == p90['stroke'] == p90['fill'] == '#e5383b'
+    assert p90['threshold_m'] == 9656.1
+    assert p90['callsign'] == '90% Percentile TARR'
+    assert p90['remarks'] == 'Threshold: 9.66 km cost-distance'
+
+    kml = ET.fromstring(client.get(job['outputs']['contours.kml']['href'], headers=ALICE).data)
+    ns = {'k': 'http://www.opengis.net/kml/2.2'}
+    names = [n.text for n in kml.findall('.//k:Placemark/k:name', ns)]
+    assert '90% Percentile TARR' in names
+    assert kml.find(".//k:Style[@id='style_3']/k:LineStyle/k:color", ns).text == 'ff3b38e5'
+
+
+def test_p90_is_never_calibrated(client):
+    body = {**AZ_P90, 'calibration': 'global',
+            'subject': {**AZ_P90['subject'], 'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': 9, 'unit': 'km'}}}
+    res = client.post('/api/v1/tarr/jobs', json=body, headers=ALICE).json['resolved']
+    assert res['final_distances_km'] == {'p25': 1.05, 'p50': 2.7, 'p75': 7.2, 'p90': 9.0, 'unit': 'km'}
+    assert res['multipliers'] == {'m25': 1.05, 'm50': 1.35, 'm75': 1.8}
+    assert res['radius_km'] == 11.0
+
+
+def test_p90_dropped_with_a_warning_when_calibration_passes_it(client, fake_pipeline):
+    body = {**AZ_P90, 'calibration': 'global',
+            'subject': {**AZ_P90['subject'], 'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': 7, 'unit': 'km'}}}
+    r = client.post('/api/v1/tarr/jobs', json=body, headers=ALICE)
+    assert r.status_code == 202, r.json
+    res = r.json['resolved']
+    assert res['source_distances_km']['p90'] == 7.0
+    assert res['final_distances_km'] == {'p25': 1.05, 'p50': 2.7, 'p75': 7.2, 'unit': 'km'}
+    assert res['radius_km'] == 9.2  # back to 75% + 2 km
+
+    job = wait_for(client, r.json['id'])
+    assert job['status'] == 'succeeded', job['error']
+    assert fake_pipeline.cuts == []
+    assert job['result']['contour_count'] == 3
+    [w] = [w for w in job['result']['warnings'] if w['source'] == 'p90']
+    assert w['severity'] == 'warning'
+    assert w['message'] == ('The 90% ring was not drawn: calibration moved the 75% distance to 7.20 km (4.47 mi), '
+                            'past the uncalibrated 90% distance of 7.00 km (4.35 mi).')
+
+
+@pytest.mark.parametrize('cut_fail,cut_result,expect', [
+    ('boom', None, 'The 90% ring could not be drawn (RuntimeError: boom).'),
+    (None, {'type': 'FeatureCollection', 'features': []},
+     'The 90% ring was not drawn: no reachable area within 9.66 km (6.00 mi).'),
+])
+def test_a_90_ring_that_cannot_be_cut_is_a_warning(client, fake_pipeline, cut_fail, cut_result, expect):
+    fake_pipeline.cut_fail, fake_pipeline.cut_result = cut_fail, cut_result
+    job = wait_for(client, client.post('/api/v1/tarr/jobs', json=AZ_P90, headers=ALICE).json['id'])
+    assert job['status'] == 'succeeded', job['error']
+    assert job['result']['contour_count'] == 3
+    assert [w['message'] for w in job['result']['warnings'] if w['source'] == 'p90'] == [expect]
+
+
+def test_listed_subjects_never_get_a_90_ring(client, fake_pipeline):
+    r = client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE)
+    assert 'p90' not in r.json['resolved']['final_distances_km']
+    job = wait_for(client, r.json['id'])
+    assert fake_pipeline.cuts == [] and job['result']['contour_count'] == 3
+
+
 @pytest.mark.parametrize('body,pointer', [
     ({'ipp': {'lat': 34.9, 'lng': -111.7}, 'subject': HIKER['subject']}, '/ipp/lon'),
     ({'ipp': {'lat': 95, 'lon': -111.7}, 'subject': HIKER['subject']}, '/ipp/lat'),
     ({'ipp': IPP, 'subject': {'kind': 'custom', 'name': 'x', 'distances': {'p25': 3, 'p50': 2, 'p75': 4}}}, '/subject/distances'),
     ({'ipp': IPP, 'subject': {'kind': 'custom', 'name': 'x', 'distances': {'p25': 1, 'p50': 2}}}, '/subject/distances/p75'),
+    ({'ipp': IPP, 'subject': {'kind': 'custom', 'name': 'x', 'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': 4}}},
+     '/subject/distances/p90'),
+    ({'ipp': IPP, 'subject': {'kind': 'custom', 'name': 'x', 'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': -1}}},
+     '/subject/distances/p90'),
+    ({'ipp': IPP, 'subject': {**HIKER['subject'], 'distances': {'p25': 1, 'p50': 2, 'p75': 4, 'p90': 6}}}, '/subject/'),
     ({'ipp': IPP, 'subject': {'kind': 'listed', 'category': 'Unicorn'}}, '/subject/category'),
     ({'ipp': IPP, 'subject': {'kind': 'other'}}, '/subject/kind'),
     ({'ipp': IPP, 'subject': HIKER['subject'], 'dataset': 'nope'}, '/dataset'),
