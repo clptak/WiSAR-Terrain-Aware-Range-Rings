@@ -1,5 +1,8 @@
-# One replica. Do not scale this service: intermediate rasters share fixed
-# names inside a single process-wide work directory.
+# One replica. Do not scale this service: the job queue, job index and
+# legacy lock live in its single Gunicorn process (see the Dockerfile), so a
+# second replica would run its own queue and not see the first one's jobs.
+# (Since v1.18 each analysis has its own work directory; that is no longer
+# the reason.)
 #
 # Snapshots are not built by `up`. They are large (NLCD a few GB, NHD ~20 GB,
 # OSM ~19 GB) and the builders need write access, outbound network, and more
