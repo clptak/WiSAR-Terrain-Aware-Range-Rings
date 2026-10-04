@@ -140,7 +140,10 @@ def test_tarr_listed_end_to_end(client, fake_pipeline):
     assert fake_pipeline.calls[0][1]['p'] == (1.61, 3.542, 9.016)
     assert fake_pipeline.threads == ['wisar-job-worker']
     assert set(job['outputs']) == {'contours.geojson', 'contours.kml', 'cost-distance.tif',
-                                   'cost-surface.tif', 'attractor-score.tif', 'probability.tif'}
+                                   'cost-surface.tif', 'attractor-score.tif', 'probability.tif',
+                                   'overlay-attractor.png', 'overlay-attractor.tif',
+                                   'overlay-terrain.png', 'overlay-terrain.tif',
+                                   'overlay-probability.png', 'overlay-probability.tif'}
     assert job['result']['crs'] == 'EPSG:4326' and job['result']['contour_count'] == 3
     assert job['result']['warnings'][0]['message'] == 'test note'
     assert job['expires_at'] is not None
@@ -281,6 +284,10 @@ def test_travel_time_end_to_end(client, fake_pipeline):
     assert {f['properties']['fill-opacity'] for f in gj['features']} == {0.1}
     assert {f['properties']['stroke-width'] for f in gj['features']} == {3}
     r = client.get(f"/api/v1/jobs/{job['id']}/outputs/probability.tif", headers=ALICE)
+    assert r.status_code == 404
+    assert [o['id'] for o in job['result']['overlays']] == ['attractor', 'terrain']
+    assert 'overlay-probability.png' not in job['outputs']
+    r = client.get(f"/api/v1/jobs/{job['id']}/outputs/overlay-probability.png", headers=ALICE)
     assert r.status_code == 404
 
 
@@ -577,3 +584,70 @@ def test_responses_match_spec_schemas(client, fake_pipeline):
     assert spec.errors('ContourCollection', gj) == []
     problem = client.post('/api/v1/tarr/jobs', json={}, headers=ALICE).json
     assert spec.errors('Problem', problem) == []
+
+
+# ---- colored map overlays --------------------------------------------------
+def _png(client, href, tmp_path, name):
+    from PIL import Image
+    r = client.get(href, headers=ALICE)
+    assert r.status_code == 200 and r.headers['Content-Type'] == 'image/png'
+    path = tmp_path / name
+    path.write_bytes(r.data)
+    import numpy as np
+    return np.array(Image.open(path).convert('RGBA'))
+
+
+def test_tarr_overlays_match_the_web_tool(client, tmp_path, fake_pipeline):
+    job = wait_for(client, client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE).json['id'])
+    res = job['result']
+    assert [(o['id'], o['title']) for o in res['overlays']] == [
+        ('attractor', 'Terrain Attractor Priority'), ('terrain', 'Terrain Difficulty'),
+        ('probability', 'Probability (TARR bands)')]
+    for o in res['overlays']:
+        assert o['bounds'] == pytest.approx(res['bounds'])
+        assert o['png'] in job['outputs'] and o['geotiff'] in job['outputs']
+
+    # Terrain Attractor Priority: alpha 60 + 170 * score ** 0.6; NoData transparent
+    a = _png(client, job['outputs']['overlay-attractor.png']['href'], tmp_path, 'a.png')
+    assert a.shape == (60, 60, 4)
+    assert a[15, 30, 3] == 230          # intersection, score 1.0
+    assert a[40, 30, 3] == int(60 + 170 * 0.55 ** 0.6)
+    assert a[50, 5, 3] == 60            # no attractor
+    assert a[0, 0, 3] == 0              # NoData corner
+
+    # Terrain Difficulty: flat ground, friction 1.5 -> difficulty 10 -> second stop, alpha 150
+    t = _png(client, job['outputs']['overlay-terrain.png']['href'], tmp_path, 't.png')
+    assert tuple(t[30, 30]) == (50, 175, 50, 150)
+
+    # Probability bands: zone 4 fill inside p25, nothing beyond p75
+    pb = _png(client, job['outputs']['overlay-probability.png']['href'], tmp_path, 'p.png')
+    assert tuple(pb[30, 30]) == (220, 38, 38, 100)
+    assert pb[55, 55, 3] == 0
+
+    # The GeoTIFF is the same picture as an RGBA COG on the job grid
+    r = client.get(job['outputs']['overlay-attractor.tif']['href'], headers=ALICE)
+    assert r.headers['Content-Type'] == 'image/tiff; application=geotiff; profile=cloud-optimized'
+    path = tmp_path / 'a.tif'
+    path.write_bytes(r.data)
+    with rasterio.open(path) as src:
+        assert src.count == 4 and src.dtypes[0] == 'uint8'
+        assert src.colorinterp[3].name == 'alpha'
+        assert src.tags(ns='IMAGE_STRUCTURE').get('LAYOUT') == 'COG'
+        assert (src.read().transpose(1, 2, 0) == a).all()
+        b = src.bounds
+        assert [b.left, b.bottom, b.right, b.top] == pytest.approx(
+            [res['bounds'][k] for k in ('west', 'south', 'east', 'north')])
+
+
+def test_an_overlay_that_fails_is_a_warning_not_a_failed_job(client, fake_pipeline, monkeypatch):
+    from api import overlays
+
+    def boom(*a, **kw):
+        raise ValueError('bad raster')
+    monkeypatch.setattr(overlays, 'terrain_rgba', boom)
+    job = wait_for(client, client.post('/api/v1/tarr/jobs', json=HIKER, headers=ALICE).json['id'])
+    assert job['status'] == 'succeeded', job['error']
+    assert [o['id'] for o in job['result']['overlays']] == ['attractor', 'probability']
+    assert 'overlay-terrain.png' not in job['outputs'] and 'overlay-terrain.tif' not in job['outputs']
+    assert any(w['source'] == 'overlay' and 'Terrain Difficulty' in w['message']
+               for w in job['result']['warnings'])

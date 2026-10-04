@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "WiSAR Terrain-Aware Range Rings API",
-    "version": "1.0.0-draft",
+    "version": "1.1.0-draft",
     "summary": "Headless API for Terrain-Aware Range Rings (TARR) and travel-time isochrones.",
     "description": "Computes Terrain-Aware Range Rings (Koester percentile envelopes) and travel-time isochrones from an Initial Planning Point (IPP) over an anisotropic cost surface (Tobler slope, NLCD land cover, OSM trails/roads, NHD hydrography). Intended client: CloudTAK plugins (Incident Manager, Search Containment).\n\n## Workflow (asynchronous request-reply)\n1. `POST /tarr/jobs` or `POST /travel-time/jobs` → `202 Accepted` with a `Location` header and a Job.\n2. Poll `GET /jobs/{job_id}` (honour `Retry-After`) until `status` is `succeeded` or `failed`.\n3. Fetch outputs from the links in `outputs`.\n\nJobs run one at a time, first in first out. An analysis takes roughly 15 s to several minutes.\n\n## Conventions\n- Coordinates: WGS84. Request bodies use named `lat`/`lon`; GeoJSON follows RFC 7946 (`[lon, lat]`).\n- Rasters: EPSG:4326 Cloud-Optimized GeoTIFF, DEFLATE, lossless, with overviews. Grid is capped at 1000×1000 cells, so large analyses have coarser cells; see `result.cell_size_m`.\n- Distances in kilometres unless a `unit` field says otherwise. Times in hours.\n- Errors: RFC 9457 `application/problem+json`.\n- Land cover and hydrography snapshots cover CONUS; outside it the analysis runs with warnings (see `result.warnings`).\n\n## Authentication\nSend the caller's CloudTAK token as `Authorization: Bearer <token>`. WiSAR verifies it with CloudTAK `GET /api/login` and caches the result briefly. One WiSAR can serve several CloudTAK deployments: the browser's `Origin` header selects the deployment whose `/api/login` verifies the token, and an unregistered origin gets `403`. Requests without an `Origin` use the first registered deployment. Jobs belong to the user on that deployment. `/health`, `/openapi.json` and `/docs` are public.\n\n## Retention\nFinished jobs and their outputs are deleted after `WISAR_JOB_TTL_HOURS` (default 72). `expires_at` gives the time. Copy anything you need to keep into the mission.\n\nThis tool is one input to search planning and does not replace the judgment of search planners or incident command.",
     "license": {
@@ -906,6 +906,402 @@
           }
         }
       }
+    },
+    "/jobs/{job_id}/outputs/overlay-attractor.png": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getAttractorOverlayPng",
+        "summary": "Terrain Attractor Priority overlay (PNG preview)",
+        "description": "The web tool's Terrain Attractor Priority heatmap (Jacobs 2015): attractor score through the shared colormap, alpha rising with score, NoData transparent. RGBA PNG on the job grid; place it with the matching `result.overlays[].bounds`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/overlay-attractor.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getAttractorOverlayGeoTiff",
+        "summary": "Terrain Attractor Priority overlay (GeoTIFF)",
+        "description": "The web tool's Terrain Attractor Priority heatmap (Jacobs 2015): attractor score through the shared colormap, alpha rising with score, NoData transparent. RGBA Cloud-Optimized GeoTIFF (EPSG:4326, DEFLATE) for importing into CloudTAK as a lasting overlay.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/overlay-terrain.png": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getTerrainOverlayPng",
+        "summary": "Terrain Difficulty overlay (PNG preview)",
+        "description": "The web tool's Terrain Difficulty layer: the larger of slope and friction difficulty, green (easy) to dark red (hard), alpha 150. Left out when the run had no elevation data. RGBA PNG on the job grid; place it with the matching `result.overlays[].bounds`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/overlay-terrain.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getTerrainOverlayGeoTiff",
+        "summary": "Terrain Difficulty overlay (GeoTIFF)",
+        "description": "The web tool's Terrain Difficulty layer: the larger of slope and friction difficulty, green (easy) to dark red (hard), alpha 150. Left out when the run had no elevation data. RGBA Cloud-Optimized GeoTIFF (EPSG:4326, DEFLATE) for importing into CloudTAK as a lasting overlay.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/overlay-probability.png": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getProbabilityOverlayPng",
+        "summary": "Probability (TARR bands) overlay (PNG preview)",
+        "description": "The web tool's percentile bands: filled zones inside p25 (red), p25-p50 (amber), p50-p75 (yellow) with boundary lines, without the in-image labels. RGBA PNG on the job grid; place it with the matching `result.overlays[].bounds`. TARR jobs only; a travel-time job returns 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/outputs/overlay-probability.tif": {
+      "get": {
+        "tags": [
+          "Outputs"
+        ],
+        "operationId": "getProbabilityOverlayGeoTiff",
+        "summary": "Probability (TARR bands) overlay (GeoTIFF)",
+        "description": "The web tool's percentile bands: filled zones inside p25 (red), p25-p50 (amber), p50-p75 (yellow) with boundary lines, without the in-image labels. RGBA Cloud-Optimized GeoTIFF (EPSG:4326, DEFLATE) for importing into CloudTAK as a lasting overlay. TARR jobs only; a travel-time job returns 404.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/JobId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "attachment; filename=\"<job-type>_<job-id-prefix>_<name>\""
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/tiff; application=geotiff; profile=cloud-optimized": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/NotRegistered"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Job has not succeeded (still queued or running, or it failed).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "410": {
+            "$ref": "#/components/responses/Gone"
+          },
+          "503": {
+            "$ref": "#/components/responses/AuthUnavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1451,7 +1847,7 @@
           },
           "source": {
             "type": "string",
-            "description": "e.g. dem, nlcd, nhd, osm."
+            "description": "e.g. dem, nlcd, nhd, osm, jacobs, overlay."
           },
           "message": {
             "type": "string",
@@ -1538,6 +1934,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Warning"
+            }
+          },
+          "overlays": {
+            "type": "array",
+            "description": "Colored map layers drawn for this job: attractor and terrain for both job types, probability for TARR. A layer that could not be drawn is left out, with a warning.",
+            "items": {
+              "$ref": "#/components/schemas/Overlay"
             }
           }
         }
@@ -1646,7 +2049,13 @@
                 "cost-distance.tif",
                 "cost-surface.tif",
                 "attractor-score.tif",
-                "probability.tif"
+                "probability.tif",
+                "overlay-attractor.png",
+                "overlay-attractor.tif",
+                "overlay-terrain.png",
+                "overlay-terrain.tif",
+                "overlay-probability.png",
+                "overlay-probability.tif"
               ]
             }
           },
@@ -2053,6 +2462,42 @@
                 "description": "Hash of the page the section came from."
               }
             }
+          }
+        }
+      },
+      "Overlay": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "png",
+          "geotiff",
+          "bounds"
+        ],
+        "description": "A colored map layer rendered like the web tool's. Draw `png` as an image over `bounds` for a temporary preview; import `geotiff` (RGBA COG) into CloudTAK to keep it as an overlay.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "attractor",
+              "terrain",
+              "probability"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "e.g. Terrain Attractor Priority."
+          },
+          "png": {
+            "type": "string",
+            "description": "Output name of the PNG preview."
+          },
+          "geotiff": {
+            "type": "string",
+            "description": "Output name of the RGBA Cloud-Optimized GeoTIFF."
+          },
+          "bounds": {
+            "$ref": "#/components/schemas/Bounds"
           }
         }
       }

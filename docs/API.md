@@ -29,10 +29,27 @@ CloudTAK `GET /api/login` and caches the answer for 5 minutes.
 | `cost-surface.tif` | yes | yes | Float32 friction multiplier per cell |
 | `attractor-score.tif` | yes | yes | Float32 0–1 Jacobs (2015) terrain-attractor score (the web heatmap as data) |
 | `probability.tif` | yes | no | Band class: 4 inside p25, 3 p25–p50, 2 p50–p75, 1 beyond p75 |
+| `overlay-attractor.png` / `.tif` | yes | yes | Terrain Attractor Priority, colored as the web tool's heatmap |
+| `overlay-terrain.png` / `.tif` | yes | yes | Terrain Difficulty, colored as the web tool's layer (left out without elevation data) |
+| `overlay-probability.png` / `.tif` | yes | no | Probability (TARR bands): the web tool's percentile zones and lines, without labels |
 
 Rasters are EPSG:4326 Cloud-Optimized GeoTIFFs, DEFLATE, lossless, NoData
 −9999 (0 for `probability.tif`). The grid is capped at 1000×1000 cells;
 `result.cell_size_m` shows when a large analysis was coarsened.
+
+### Colored overlays
+
+`result.overlays` lists the colored map layers drawn for the job, each with
+`id`, `title`, `png`, `geotiff` and `bounds`. They are rendered at job end
+by `app/api/overlays.py` with the same colors and rules as the web tool's
+`cost_surface.png`, `terrain.png` and `percentiles.png` routes (those read the
+legacy result store, which v1 jobs don't use). The PNG is an RGBA image on the
+job grid for a temporary map preview: draw it over `bounds`. The `.tif` is the
+same picture as an RGBA Cloud-Optimized GeoTIFF that CloudTAK's Imports can
+turn into a lasting overlay. A layer that can't be drawn is left out of the
+list and reported in `result.warnings` (`source: overlay`); it never fails
+the job. The coloring is copied from `server.py`: keep it in step when those
+routes change.
 
 ## Subjects and calibration (TARR)
 

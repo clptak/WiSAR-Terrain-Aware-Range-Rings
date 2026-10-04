@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-API_VERSION = '1.0.0-draft'
+API_VERSION = '1.1.0-draft'
 
 
 def _find_spec():

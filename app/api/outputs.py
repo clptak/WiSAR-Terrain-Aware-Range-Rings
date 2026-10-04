@@ -14,6 +14,8 @@ import numpy as np
 import rasterio
 import rasterio.shutil
 
+from . import overlays as ov
+
 GEOTIFF_MEDIA = 'image/tiff; application=geotiff; profile=cloud-optimized'
 MEDIA = {
     'contours.geojson': 'application/geo+json',
@@ -23,7 +25,11 @@ MEDIA = {
     'attractor-score.tif': GEOTIFF_MEDIA,
     'probability.tif': GEOTIFF_MEDIA,
 }
-TARR_ONLY = {'probability.tif'}
+# Colored map overlays (see overlays.py): a PNG preview and an RGBA COG each
+for _oid in ov.OVERLAYS:
+    MEDIA[ov.png_name(_oid)] = 'image/png'
+    MEDIA[ov.tif_name(_oid)] = GEOTIFF_MEDIA
+TARR_ONLY = {'probability.tif', ov.png_name('probability'), ov.tif_name('probability')}
 NODATA = -9999.0
 
 
@@ -37,7 +43,9 @@ def write_cog(src_path, dst_path):
 
 def write_attractor_score(result, cd_path, dst_path):
     """The web tool's heatmap as data: server._compute_attractor_score_max
-    over the Jacobs masks, with the same NoData rule as serve_cost_png."""
+    over the Jacobs masks, with the same NoData rule as serve_cost_png.
+    Returns (masks_found, score, nodata_mask) so the colored overlay can be
+    drawn from the same numbers."""
     import server  # imported late: server.py is the Flask app module
     with rasterio.open(cd_path) as src:
         cd = src.read(1).astype(np.float64)
@@ -52,7 +60,7 @@ def write_attractor_score(result, cd_path, dst_path):
         dst.write(score, 1)
     write_cog(tmp, dst_path)
     os.remove(tmp)
-    return jacobs is not None
+    return jacobs is not None, score, nodata_mask
 
 
 def grid_info(cd_path):
@@ -146,20 +154,59 @@ def build_outputs(result, job_type, job_dir):
     write_cog(cd_path, os.path.join(job_dir, 'cost-distance.tif'))
     write_cog(result['cost_surface_path'], os.path.join(job_dir, 'cost-surface.tif'))
     warnings = list(result.get('warnings') or [])
-    if not write_attractor_score(result, cd_path, os.path.join(job_dir, 'attractor-score.tif')):
+    masks_found, score, nodata_mask = write_attractor_score(result, cd_path,
+                                                            os.path.join(job_dir, 'attractor-score.tif'))
+    if not masks_found:
         warnings.append({'severity': 'warning', 'source': 'jacobs',
                          'message': 'Terrain-attractor masks were not computed for this run, so the '
                                     'attractor-score raster is all zeros.'})
     if job_type == 'tarr' and result.get('probability_path'):
         write_cog(result['probability_path'], os.path.join(job_dir, 'probability.tif'))
 
+    overlays = build_overlays(result, job_type, job_dir, cd_path, score, nodata_mask, warnings)
+
     outputs = {}
     for name, media in MEDIA.items():
         path = os.path.join(job_dir, name)
         if os.path.exists(path):
             outputs[name] = {'media_type': media, 'bytes': os.path.getsize(path)}
-    block = dict(info, contour_count=len(fc['features']), warnings=warnings)
+    block = dict(info, contour_count=len(fc['features']), warnings=warnings, overlays=overlays)
     return outputs, block
+
+
+def build_overlays(result, job_type, job_dir, cd_path, score, nodata_mask, warnings):
+    """Render the colored map overlays (overlays.py). A layer that can't be
+    drawn is skipped with a warning; it never fails the job."""
+    renderers = {
+        'attractor': lambda: (ov.attractor_rgba(score, nodata_mask), cd_path),
+        'terrain': lambda: (ov.terrain_rgba(result['cost_surface_path'], result['dem_path']),
+                            result['cost_surface_path']),
+        'probability': lambda: (ov.probability_rgba(result['probability_path']), result['probability_path']),
+    }
+    out = []
+    for oid, (title, tarr_only) in ov.OVERLAYS.items():
+        if tarr_only and (job_type != 'tarr' or not result.get('probability_path')):
+            continue
+        if oid == 'terrain' and not (result.get('dem_path') and os.path.exists(result['dem_path'])):
+            warnings.append({'severity': 'info', 'source': 'overlay',
+                             'message': f'{title} overlay skipped: no elevation data for this run.'})
+            continue
+        try:
+            rgba, ref = renderers[oid]()
+            bounds = ov.write_overlay(rgba, ref, os.path.join(job_dir, ov.png_name(oid)),
+                                      os.path.join(job_dir, ov.tif_name(oid)), write_cog)
+        except Exception as e:  # noqa: BLE001 - an overlay must never fail the job
+            for name in (ov.png_name(oid), ov.tif_name(oid)):
+                try:
+                    os.remove(os.path.join(job_dir, name))
+                except OSError:
+                    pass
+            warnings.append({'severity': 'warning', 'source': 'overlay',
+                             'message': f'{title} overlay could not be drawn ({type(e).__name__}: {e}).'})
+            continue
+        out.append({'id': oid, 'title': title, 'png': ov.png_name(oid), 'geotiff': ov.tif_name(oid),
+                    'bounds': bounds})
+    return out
 
 
 def _coords(ring):
